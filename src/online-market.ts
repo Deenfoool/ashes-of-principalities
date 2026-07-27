@@ -45,6 +45,7 @@ export interface MarketSellableItem {
 export interface MarketSnapshot {
   character: SurvivalCharacter | null
   feePercent: number
+  pendingCoins: number
   safe: boolean
   safeReason: string | null
   listings: MarketListing[]
