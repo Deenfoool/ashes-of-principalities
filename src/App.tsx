@@ -1,551 +1,346 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
-import { enemyById, professionById, professions, questById, quests } from './game/content'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
+import AppV3 from './AppV3'
+import UnifiedChat from './UnifiedChat'
+import UnifiedCrafting from './UnifiedCrafting'
+import UnifiedGuild from './UnifiedGuild'
 import {
-  applyChoice,
-  canChoose,
-  clearGame,
-  createGame,
-  createGuild,
-  depositGuildCoins,
-  experienceForNextLevel,
-  getGuildBonusMultiplier,
-  getScene,
-  guildExperienceForNextLevel,
-  loadGame,
-  loadGuild,
-  loadLegacy,
-  performCombatAction,
-  resetGuildTree,
-  saveGame,
-  spendSkillPoint,
-  upgradeGuildBranch,
-} from './game/engine'
-import type { CombatAction } from './game/engine'
-import type { Choice, GameState, GuildBranchId, GuildState, LegacyState, ProfessionId } from './game/types'
+  fetchOnlineSnapshot,
+  loginOnline,
+  logoutOnline,
+  OnlineError,
+  registerOnline,
+} from './online'
+import type { OnlineSnapshot } from './online'
+import {
+  actInServerExpedition,
+  createServerCharacter,
+  createServerHeir,
+  flushPlayerActionQueue,
+  getServerContracts,
+  PlayerApiError,
+  QueuedPlayerAction,
+  startServerExpedition,
+} from './online-player'
+import type { CombatAction, OnlineProfession, ServerContract } from './online-player'
+import {
+  chooseServerStory,
+  flushStoryActionQueue,
+  getServerStory,
+} from './online-story'
+import type { ServerStory } from './online-story'
+import {
+  equipServerItem,
+  repairServerItem,
+  treatServerInjury,
+} from './online-survival'
+import type { SurvivalCharacter, SurvivalItem } from './online-survival'
 
-type View = 'journey' | 'journal' | 'character' | 'chat' | 'guild'
-type ChatChannel = 'general' | 'trade' | 'guild'
+type View = 'journey' | 'character' | 'crafting' | 'guild' | 'chat' | 'account'
 
-interface ChatMessage {
-  id: string
-  channel: ChatChannel
-  author: string
-  text: string
-  timestamp: number
-  system?: boolean
-  guildId?: string | null
+const professionNames: Record<OnlineProfession, string> = {
+  blacksmith: 'Кузнец',
+  herbalist: 'Травник',
+  hunter: 'Охотник',
+  scribe: 'Писарь',
+  carter: 'Возчик',
+  wanderer: 'Странник',
 }
 
-const channelLabels: Record<ChatChannel, string> = {
-  general: '#Общий',
-  trade: '#Торговля',
-  guild: '#Гильдия',
+const intentNames: Record<string, string> = {
+  attack: 'обычная атака',
+  heavy: 'тяжёлый удар',
+  guard: 'защита',
+  hex: 'проклятие',
 }
 
-const branchInfo: Record<GuildBranchId, { name: string; description: string }> = {
-  warband: { name: 'Дружина', description: 'Усиливает урон в опасных столкновениях.' },
-  treasury: { name: 'Казна', description: 'Повышает монеты за бои и контракты.' },
-  workshops: { name: 'Мастерские', description: 'Усиливает лечебные предметы.' },
-  foraging: { name: 'Промысел', description: 'Подготавливает будущую добычу ресурсов и снижает дорожные потери.' },
-  chronicle: { name: 'Летопись', description: 'Повышает опыт за бои и контракты.' },
+const actionLabels: Record<CombatAction, string> = {
+  attack: 'Атаковать',
+  guard: 'Защищаться',
+  prepare: 'Подготовиться',
+  profession: 'Приём ремесла',
+  flee: 'Отступить',
 }
 
-const intentLabels = {
-  attack: 'готовит обычную атаку',
-  heavy: 'замахивается для тяжёлого удара',
-  guard: 'собирается защищаться',
-  watch: 'наблюдает за твоими движениями',
+const qualityNames: Record<string, string> = {
+  worn: 'изношенное',
+  common: 'обычное',
+  good: 'добротное',
+  masterwork: 'мастерское',
 }
 
-const professionCombatLabels: Record<ProfessionId, string> = {
-  blacksmith: 'Сбить броню',
-  herbalist: 'Применить яд',
-  hunter: 'Точный выстрел',
-  scribe: 'Прочесть повадку',
-  carter: 'Накинуть петлю',
-  wanderer: 'Грязный приём',
+function describeError(error: unknown) {
+  if (error instanceof OnlineError || error instanceof PlayerApiError || error instanceof QueuedPlayerAction) return error.message
+  return 'Не удалось связаться с сервером.'
 }
 
-const getPlayerId = () => {
-  const key = 'ashes-of-principalities:player-id'
-  const existing = localStorage.getItem(key)
-  if (existing) return existing
-  const id = crypto.randomUUID()
-  localStorage.setItem(key, id)
-  return id
+function Meter({ label, value, max }: { label: string; value: number; max: number }) {
+  const width = `${Math.max(0, Math.min(100, max > 0 ? value / max * 100 : 0))}%`
+  return <div className="u-meter"><div><span>{label}</span><strong>{value}/{max}</strong></div><div><span style={{ width }} /></div></div>
 }
 
-function CharacterCreation({ legacy, onCreate }: { legacy: LegacyState; onCreate: (name: string, professionId: ProfessionId) => void }) {
-  const [selected, setSelected] = useState<ProfessionId>('hunter')
-  const [name, setName] = useState('')
-  const profession = professionById[selected]
+function GuestPortal({ onAuthenticated }: { onAuthenticated: () => Promise<void> }) {
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [demo, setDemo] = useState(false)
 
-  return (
-    <main className="creation-shell">
-      <section className="creation-intro">
-        <p className="eyebrow">Текстовая PWA RPG-рогалик</p>
-        <h1>Пепел Княжеств</h1>
-        <p>Здесь нет избранных. Есть ремесло, долги и дорога, которая переживёт тебя.</p>
-        <div className="legacy-summary">
-          <span>Родовая слава: <strong>{legacy.renown}</strong></span>
-          <span>Погибло предшественников: <strong>{legacy.deaths}</strong></span>
-          <span>Завершено контрактов: <strong>{legacy.contractsCompleted}</strong></span>
-        </div>
-      </section>
-
-      <section className="profession-grid" aria-label="Выбор ремесла">
-        {professions.map((item) => (
-          <button
-            className={`profession-card ${selected === item.id ? 'selected' : ''}`}
-            key={item.id}
-            onClick={() => setSelected(item.id)}
-            type="button"
-          >
-            <span>{item.name}</span>
-            <small>{item.epithet}</small>
-          </button>
-        ))}
-      </section>
-
-      <section className="profession-detail">
-        <div>
-          <p className="eyebrow">Новый человек</p>
-          <h2>{profession.name}</h2>
-          <p>{profession.description}</p>
-        </div>
-        <label className="field-label">
-          Имя персонажа
-          <input maxLength={24} onChange={(event: ChangeEvent<HTMLInputElement>) => setName(event.target.value)} placeholder="Например, Мирослав" value={name} />
-        </label>
-        <dl>
-          <div><dt>Преимущество</dt><dd>{profession.bonus}</dd></div>
-          <div><dt>Начальный предмет</dt><dd>{profession.startingItem}</dd></div>
-          {legacy.heirlooms[0] && <div><dt>Наследство</dt><dd>{legacy.heirlooms[0]}</dd></div>}
-        </dl>
-        <button className="primary-action" disabled={name.trim().length < 2} type="button" onClick={() => onCreate(name, selected)}>
-          Выйти на дорогу
-        </button>
-      </section>
-    </main>
-  )
-}
-
-function Stat({ label, value, max }: { label: string; value: number; max: number }) {
-  const width = `${Math.min(100, Math.max(0, (value / Math.max(1, max)) * 100))}%`
-  return (
-    <div className="stat">
-      <div><span>{label}</span><strong>{value}/{max}</strong></div>
-      <div className="stat-track"><span style={{ width }} /></div>
-    </div>
-  )
-}
-
-function requirementText(game: GameState, choice: Choice) {
-  if (choice.requiresProfession && choice.requiresProfession !== game.professionId) return `Требуется ремесло: ${professionById[choice.requiresProfession].name}`
-  if (choice.requiresItem && !game.inventory.includes(choice.requiresItem)) return `Требуется предмет: ${choice.requiresItem}`
-  if (choice.requiresInsight && game.insight < choice.requiresInsight) return `Требуется чутьё: ${choice.requiresInsight}`
-  if (choice.requiresFlag === 'chapter-complete' && !game.flags.includes('chapter-complete')) return 'Сначала завершите все три контракта'
-  if (choice.requiresFlag && !game.flags.includes(choice.requiresFlag)) return 'Этот вариант пока недоступен'
-  if (choice.startQuest && game.completedQuestIds.includes(choice.startQuest)) return 'Контракт уже завершён'
-  if (choice.startQuest && game.activeQuestId && game.activeQuestId !== choice.startQuest) return 'Сначала завершите текущий контракт'
-  if ((choice.effects?.coins ?? 0) < 0 && game.coins < Math.abs(choice.effects?.coins ?? 0)) return 'Недостаточно монет'
-  if ((choice.effects?.stamina ?? 0) < 0 && game.stamina < Math.abs(choice.effects?.stamina ?? 0)) return 'Недостаточно сил'
-  return null
-}
-
-function CombatPanel({ game, onAction }: { game: GameState; onAction: (action: CombatAction) => void }) {
-  const combat = game.combat!
-  const enemy = enemyById[combat.enemyId]
-  const enemyPercent = `${Math.max(0, (combat.enemyHealth / enemy.maxHealth) * 100)}%`
-
-  return (
-    <section className="panel combat-panel">
-      <header className="combat-header">
-        <div>
-          <p className="eyebrow">Опасное столкновение · ход {combat.turn}</p>
-          <h1>{enemy.name}</h1>
-          <p>{enemy.description}</p>
-        </div>
-        <div className="enemy-health">
-          <span>Здоровье врага</span>
-          <strong>{combat.enemyHealth}/{enemy.maxHealth}</strong>
-          <div className="enemy-track"><span style={{ width: enemyPercent }} /></div>
-        </div>
-      </header>
-
-      <div className="enemy-intent"><strong>Намерение:</strong> противник {intentLabels[combat.intent]}.</div>
-
-      <div className="combat-actions">
-        <button type="button" onClick={() => onAction('strike')}>Атаковать</button>
-        <button type="button" onClick={() => onAction('guard')}>Защищаться</button>
-        <button disabled={game.stamina < 1} type="button" onClick={() => onAction('focus')}>Изучить противника</button>
-        <button disabled={combat.professionUsed || (game.professionId === 'hunter' && game.stamina < 2)} type="button" onClick={() => onAction('profession')}>
-          {professionCombatLabels[game.professionId]}
-        </button>
-        <button disabled={!game.inventory.includes('Лечебный сбор')} type="button" onClick={() => onAction('heal')}>Лечебный сбор</button>
-        <button className="flee-action" disabled={game.stamina < 3} type="button" onClick={() => onAction('flee')}>Отступить</button>
-      </div>
-
-      <div className="combat-log">
-        <h3>Ход боя</h3>
-        {combat.log.map((entry, index) => <p key={`${entry}-${index}`}>{entry}</p>)}
-      </div>
-    </section>
-  )
-}
-
-function ChatPanel({ author, guild }: { author: string; guild: GuildState | null }) {
-  const [channel, setChannel] = useState<ChatChannel>('general')
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [text, setText] = useState('')
-  const [status, setStatus] = useState<'connecting' | 'online' | 'offline'>('connecting')
-  const socketRef = useRef<WebSocket | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    let retryTimer: number | undefined
-    let attempts = 0
-
-    const connect = () => {
-      if (cancelled) return
-      setStatus('connecting')
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const socket = new WebSocket(`${protocol}//${window.location.host}/ws`)
-      socketRef.current = socket
-
-      socket.addEventListener('open', () => {
-        attempts = 0
-        setStatus('online')
-        socket.send(JSON.stringify({ type: 'hello', playerId: getPlayerId(), author, guildId: guild?.id ?? null }))
-      })
-      socket.addEventListener('message', (event) => {
-        try {
-          const payload = JSON.parse(String(event.data)) as { type: string; messages?: ChatMessage[]; message?: ChatMessage }
-          if (payload.type === 'history' && payload.messages) setMessages(payload.messages)
-          if (payload.type === 'message' && payload.message) setMessages((current) => [...current.slice(-119), payload.message!])
-        } catch {
-          // A malformed packet must not break the game interface.
-        }
-      })
-      socket.addEventListener('close', () => {
-        if (cancelled) return
-        setStatus('offline')
-        attempts += 1
-        retryTimer = window.setTimeout(connect, Math.min(10000, 700 * 2 ** attempts))
-      })
-      socket.addEventListener('error', () => socket.close())
-    }
-
-    connect()
-    return () => {
-      cancelled = true
-      if (retryTimer) window.clearTimeout(retryTimer)
-      socketRef.current?.close()
-    }
-  }, [author, guild?.id])
-
-  useEffect(() => {
-    if (channel === 'guild' && !guild) setChannel('general')
-  }, [channel, guild])
-
-  const visibleMessages = messages.filter((message) => message.channel === channel && (channel !== 'guild' || message.guildId === guild?.id))
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    const clean = text.trim()
-    if (!clean || socketRef.current?.readyState !== WebSocket.OPEN) return
-    socketRef.current.send(JSON.stringify({ type: 'message', channel, text: clean }))
-    setText('')
+  if (demo) {
+    return <div className="u-demo-mode"><button className="u-demo-exit" onClick={() => setDemo(false)} type="button">Выйти из демо</button><AppV3 /></div>
   }
 
-  return (
-    <section className="panel chat-panel">
-      <header className="panel-header">
-        <div><p className="eyebrow">Связь между путниками</p><h2>Чаты</h2></div>
-        <span className={`connection ${status}`}>{status === 'online' ? 'В сети' : status === 'connecting' ? 'Подключение' : 'Нет связи'}</span>
-      </header>
-      <div className="channel-tabs">
-        {(Object.keys(channelLabels) as ChatChannel[]).map((id) => (
-          <button disabled={id === 'guild' && !guild} className={channel === id ? 'active' : ''} key={id} onClick={() => setChannel(id)} type="button">
-            {channelLabels[id]}
-          </button>
-        ))}
+  return <main className="u-gate">
+    <section className="u-gate-copy">
+      <p className="eyebrow">Онлайн PWA RPG-рогалик</p>
+      <h1>Пепел Княжеств</h1>
+      <p>Один серверный герой, одна экономика и решения, которые переживают закрытие браузера.</p>
+      <div className="u-gate-facts"><span>16 авторских сцен</span><span>6 ремёсел</span><span>Серверные мастерские</span><span>Смерть и наследники</span></div>
+      <button className="u-secondary" onClick={() => setDemo(true)} type="button">Открыть гостевое демо</button>
+    </section>
+    <section className="u-auth-card">
+      <div className="u-tabs">
+        <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')} type="button">Вход</button>
+        <button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')} type="button">Регистрация</button>
       </div>
-      <div className="messages" aria-live="polite">
-        {visibleMessages.length === 0 ? (
-          <p className="empty-state">Здесь пока тихо. Первое сообщение тоже становится частью истории.</p>
-        ) : visibleMessages.map((message) => (
-          <article className={message.system ? 'system-message' : ''} key={message.id}>
-            <div><strong>{message.author}</strong><time>{new Date(message.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</time></div>
-            <p>{message.text}</p>
-          </article>
-        ))}
-      </div>
-      <form className="chat-form" onSubmit={submit}>
-        <input maxLength={280} onChange={(event: ChangeEvent<HTMLInputElement>) => setText(event.target.value)} placeholder={`Написать в ${channelLabels[channel]}`} value={text} />
-        <button disabled={status !== 'online' || !text.trim()} type="submit">Отправить</button>
+      <form onSubmit={(event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        setBusy(true)
+        setError('')
+        const operation = mode === 'register'
+          ? registerOnline({ username, password, displayName })
+          : loginOnline({ username, password })
+        void operation.then(onAuthenticated).catch((caught) => setError(describeError(caught))).finally(() => setBusy(false))
+      }}>
+        {mode === 'register' && <label>Имя в игре<input maxLength={24} onChange={(event) => setDisplayName(event.target.value)} value={displayName} /></label>}
+        <label>Логин<input autoCapitalize="none" maxLength={20} onChange={(event) => setUsername(event.target.value)} value={username} /></label>
+        <label>Пароль<input minLength={8} maxLength={128} onChange={(event) => setPassword(event.target.value)} type="password" value={password} /></label>
+        <button disabled={busy || username.trim().length < 3 || password.length < 8 || (mode === 'register' && displayName.trim().length < 2)} type="submit">
+          {busy ? 'Подключение…' : mode === 'register' ? 'Создать аккаунт' : 'Войти'}
+        </button>
       </form>
+      {error && <p className="u-notice error">{error}</p>}
     </section>
-  )
+  </main>
 }
 
-function JournalPanel({ game }: { game: GameState }) {
-  return (
-    <section className="panel journal-panel">
-      <header className="panel-header"><div><p className="eyebrow">Не список поручений, а след решений</p><h2>Контракты</h2></div><strong>{game.completedQuestIds.length}/3</strong></header>
-      <div className="quest-list">
-        {quests.map((quest) => {
-          const active = game.activeQuestId === quest.id
-          const completed = game.completedQuestIds.includes(quest.id)
-          return (
-            <article className={active ? 'active' : completed ? 'completed' : ''} key={quest.id}>
-              <div><span>{completed ? 'Завершён' : active ? 'Активен' : quest.danger}</span><h3>{quest.title}</h3></div>
-              <p>{quest.summary}</p>
-              <small>{quest.reward}</small>
-            </article>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function GuildPanel({ game, guild, onGame, onGuild }: { game: GameState; guild: GuildState | null; onGame: (game: GameState) => void; onGuild: (guild: GuildState) => void }) {
+function CharacterCreation({ busy, heir, onCreate }: {
+  busy: boolean
+  heir: boolean
+  onCreate: (name: string, profession: OnlineProfession) => void
+}) {
   const [name, setName] = useState('')
-  const [tag, setTag] = useState('')
-  const [deposit, setDeposit] = useState('10')
-  const [error, setError] = useState<string | null>(null)
+  const [profession, setProfession] = useState<OnlineProfession>('hunter')
+  return <form className="u-panel u-create" onSubmit={(event) => { event.preventDefault(); onCreate(name, profession) }}>
+    <p className="eyebrow">{heir ? 'Род не заканчивается одной смертью' : 'Первое имя в летописи'}</p>
+    <h2>{heir ? 'Создать наследника' : 'Создать героя'}</h2>
+    <label>Имя<input maxLength={24} minLength={2} onChange={(event) => setName(event.target.value)} required value={name} /></label>
+    <label>Ремесло<select onChange={(event) => setProfession(event.target.value as OnlineProfession)} value={profession}>{(Object.keys(professionNames) as OnlineProfession[]).map((id) => <option key={id} value={id}>{professionNames[id]}</option>)}</select></label>
+    <button disabled={busy || name.trim().length < 2} type="submit">{heir ? 'Продолжить род' : 'Выйти на дорогу'}</button>
+  </form>
+}
 
-  if (!guild) {
-    const hasSeal = game.inventory.includes('Печать основателя')
-    return (
-      <section className="panel guild-panel">
-        <p className="eyebrow">Общее дело</p>
-        <h2>Основать гильдию</h2>
-        <p>Гильдия объединяет до 20 игроков. Для основания нужны 12 монет и редкая Печать основателя, которую получает человек после первого завершённого контракта.</p>
-        <div className="guild-cost"><span className={game.coins >= 12 ? 'ready' : ''}>Монеты: {game.coins}/12</span><span className={hasSeal ? 'ready' : ''}>Печать: {hasSeal ? 'есть' : 'нет'}</span></div>
-        <div className="guild-create-form">
-          <label className="field-label">Название<input maxLength={28} value={name} onChange={(event: ChangeEvent<HTMLInputElement>) => setName(event.target.value)} placeholder="Например, Серые вороны" /></label>
-          <label className="field-label">Тег<input maxLength={5} value={tag} onChange={(event: ChangeEvent<HTMLInputElement>) => setTag(event.target.value)} placeholder="СВ" /></label>
-          <button className="primary-action" type="button" onClick={() => {
-            const result = createGuild(game, name, tag)
-            setError(result.error)
-            if (result.guild) {
-              onGame(result.game)
-              onGuild(result.guild)
-            }
-          }}>Основать гильдию</button>
-        </div>
-        {error && <p className="form-error">{error}</p>}
-      </section>
-    )
-  }
-
-  const bonusMultiplier = getGuildBonusMultiplier(guild)
-  const guildXpTarget = guildExperienceForNextLevel(guild.level)
-  return (
-    <section className="panel guild-panel">
-      <header className="guild-heading">
-        <div><p className="eyebrow">[{guild.tag}] · 1/20 участников</p><h2>{guild.name}</h2></div>
-        <div><span>Уровень {guild.level}</span><strong>{guild.experience}/{guildXpTarget} опыта</strong></div>
-      </header>
-
-      <div className="guild-status-grid">
-        <article><span>Бонус участника</span><strong>×{bonusMultiplier.toFixed(1)}</strong><small>{bonusMultiplier === 0 ? 'Включится через 4 часа после вступления' : bonusMultiplier === 0.5 ? 'Полная сила включится через 8 часов' : 'Работает полностью'}</small></article>
-        <article><span>Казна</span><strong>{guild.treasuryCoins} монет</strong><small>{guild.treasuryResources} ресурсов</small></article>
-        <article><span>Очки дерева</span><strong>{guild.treePoints}</strong><small>Новые очки выдаются за уровни гильдии</small></article>
-      </div>
-
-      <div className="guild-section">
-        <div className="section-title"><div><p className="eyebrow">Пять путей развития</p><h3>Дерево гильдии</h3></div><button type="button" onClick={() => {
-          const result = resetGuildTree(guild)
-          setError(result.error)
-          onGuild(result.guild)
-        }}>Сбросить раз в сезон</button></div>
-        <div className="branch-grid">
-          {(Object.keys(branchInfo) as GuildBranchId[]).map((branch) => (
-            <article key={branch}>
-              <div><h4>{branchInfo[branch].name}</h4><strong>{guild.branches[branch]}/5</strong></div>
-              <p>{branchInfo[branch].description}</p>
-              <button disabled={guild.treePoints < 1 || guild.branches[branch] >= 5} type="button" onClick={() => {
-                const result = upgradeGuildBranch(guild, branch)
-                setError(result.error)
-                onGuild(result.guild)
-              }}>Улучшить</button>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <div className="guild-section">
-        <p className="eyebrow">Обновляются каждый понедельник</p><h3>Еженедельные задания</h3>
-        <div className="guild-tasks">
-          {guild.tasks.map((task) => (
-            <article className={task.completed ? 'completed' : ''} key={task.id}>
-              <div><strong>{task.title}</strong><span>{task.current}/{task.target}</span></div>
-              <div className="task-track"><span style={{ width: `${Math.min(100, task.current / task.target * 100)}%` }} /></div>
-              <small>Награда: {task.experienceReward} опыта гильдии</small>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <div className="guild-section treasury-form">
-        <div><p className="eyebrow">Все операции должны попадать в журнал</p><h3>Взнос в казну</h3></div>
-        <input min="1" type="number" value={deposit} onChange={(event: ChangeEvent<HTMLInputElement>) => setDeposit(event.target.value)} />
-        <button type="button" onClick={() => {
-          const result = depositGuildCoins(game, guild, Number(deposit))
-          setError(result.error)
-          onGame(result.game)
-          onGuild(result.guild)
-        }}>Внести монеты</button>
-      </div>
-      {error && <p className="form-error">{error}</p>}
+function JourneyView({ character, story, contracts, busy, onChoice, onCombat, onStart, onCreate, onHeir }: {
+  character: SurvivalCharacter | null
+  story: ServerStory | null
+  contracts: ServerContract[]
+  busy: boolean
+  onChoice: (choiceId: string) => void
+  onCombat: (action: CombatAction) => void
+  onStart: (contractId: string) => void
+  onCreate: (name: string, profession: OnlineProfession) => void
+  onHeir: (name: string, profession: OnlineProfession) => void
+}) {
+  if (!character) return <CharacterCreation busy={busy} heir={false} onCreate={onCreate} />
+  if (!character.alive) return <CharacterCreation busy={busy} heir onCreate={onHeir} />
+  const active = character.activeExpedition
+  if (active) {
+    return <section className="u-panel u-combat">
+      <header className="u-section-head"><div><p className="eyebrow">Ход {active.turn}{story?.pendingEncounter ? ' · сюжет' : ''}</p><h2>{active.enemyName}</h2></div><span>Намерение: {intentNames[active.enemyIntent] ?? active.enemyIntent}</span></header>
+      <Meter label="Враг" value={active.enemyHealth} max={active.enemyMaxHealth} />
+      <div className="u-combat-flags">{active.guard > 0 && <span>Защита {active.guard}</span>}{active.prepared && <span>Удар подготовлен</span>}{character.equippedItem?.broken && <span className="danger">Инструмент сломан</span>}{character.injuries.map((injury) => <span className="danger" key={injury.id}>{injury.title}</span>)}</div>
+      <div className="u-combat-log">{active.lastLog.map((entry, index) => <p key={`${entry}-${index}`}>{entry}</p>)}</div>
+      <div className="u-action-grid">{(Object.keys(actionLabels) as CombatAction[]).map((action) => <button disabled={busy || (action === 'profession' && Boolean(character.equippedItem?.broken))} key={action} onClick={() => onCombat(action)} type="button">{actionLabels[action]}</button>)}</div>
     </section>
-  )
+  }
+  if (!story) return <section className="u-panel"><h2>Летопись ещё не создана</h2><p>Обнови страницу или повтори подключение.</p></section>
+  const complete = story.quests.filter((quest) => quest.status === 'completed').length
+  return <div className="u-stack">
+    <section className="u-panel">
+      <header className="u-section-head"><div><p className="eyebrow">{story.scene.region}</p><h2>{story.scene.title}</h2></div><span>{complete}/3 контрактов · {story.decisionCount} решений</span></header>
+      <p className="u-story-text">{story.scene.text}</p>
+      <div className="u-choice-list">{story.scene.choices.map((choice) => <button disabled={busy || !choice.available} key={choice.id} onClick={() => onChoice(choice.id)} type="button"><span>{choice.label}</span>{choice.requirement && <small>{choice.requirement}</small>}</button>)}</div>
+    </section>
+    <section className="u-panel">
+      <p className="eyebrow">След решений</p><h2>Контракты главы</h2>
+      <div className="u-quest-grid">{story.quests.map((quest) => <article className={quest.status} key={quest.id}><strong>{quest.title}</strong><p>{quest.summary}</p><small>{quest.status === 'completed' ? `Итог: ${quest.outcome}` : quest.status === 'active' ? 'Активен' : 'Доступен'}</small></article>)}</div>
+    </section>
+    {story.chapterComplete && <section className="u-panel">
+      <p className="eyebrow">Между главами</p><h2>Вольные контракты</h2>
+      <div className="u-contract-grid">{contracts.map((contract) => <article key={contract.id}><div><strong>{contract.title}</strong><span>Опасность {contract.difficulty}</span></div><p>{contract.description}</p><small>{contract.rewardCoins} монет · {contract.rewardExperience} опыта</small><button disabled={busy || character.stamina < 2} onClick={() => onStart(contract.id)} type="button">Взять контракт</button></article>)}</div>
+    </section>}
+  </div>
 }
 
-function DeathScreen({ game, onContinue }: { game: GameState; onContinue: () => void }) {
-  const legacy = loadLegacy()
-  return (
-    <main className="death-screen">
-      <p className="eyebrow">Дорога запомнила ещё одно имя</p>
-      <h1>{game.playerName} погиб</h1>
-      <p>{game.deathReason}</p>
-      <div className="death-legacy">
-        <span>Уровень: <strong>{game.level}</strong></span>
-        <span>Завершено контрактов: <strong>{game.completedQuestIds.length}</strong></span>
-        <span>Родовая слава: <strong>{legacy.renown}</strong></span>
-        <span>Сохранённые реликвии: <strong>{legacy.heirlooms.length}</strong></span>
-      </div>
-      <button className="primary-action" type="button" onClick={onContinue}>Создать наследника</button>
-    </main>
-  )
+function ItemCard({ item, busy, onRepair, onEquip }: {
+  item: SurvivalItem
+  busy: boolean
+  onRepair: () => void
+  onEquip: () => void
+}) {
+  return <article className={`u-item ${item.equipped ? 'equipped' : ''} ${item.broken ? 'broken' : ''}`}>
+    <div><strong>{item.name}</strong><span>{qualityNames[item.quality] ?? item.quality}{item.quantity > 1 ? ` · ${item.quantity} шт.` : ''}</span></div>
+    {item.maxDurability > 0 ? <>
+      <Meter label="Прочность" value={item.durability} max={item.maxDurability} />
+      <div className="u-item-actions"><button disabled={busy || item.equipped} onClick={onEquip} type="button">{item.equipped ? 'Экипировано' : 'Экипировать'}</button><button disabled={busy || item.durability >= item.maxDurability} onClick={onRepair} type="button">Ремонт</button></div>
+    </> : <small>{item.type === 'quest' ? 'Сюжетный предмет' : item.type === 'relic' ? 'Реликвия рода' : item.type === 'consumable' ? 'Ремесленная заготовка' : 'Материал или трофей'}</small>}
+  </article>
 }
 
-function App() {
-  const [game, setGame] = useState<GameState | null>(() => loadGame())
-  const [guild, setGuild] = useState<GuildState | null>(() => loadGuild())
-  const [legacy, setLegacy] = useState<LegacyState>(() => loadLegacy())
+function CharacterView({ character, story, busy, onRepair, onEquip, onTreat }: {
+  character: SurvivalCharacter
+  story: ServerStory | null
+  busy: boolean
+  onRepair: (id: string) => void
+  onEquip: (id: string) => void
+  onTreat: (id: string) => void
+}) {
+  return <div className="u-stack">
+    <section className="u-panel">
+      <header className="u-section-head"><div><p className="eyebrow">Поколение {character.generation}</p><h2>{character.name}</h2><span>{professionNames[character.profession]} · уровень {character.level}</span></div><span className={character.alive ? 'u-alive' : 'u-dead'}>{character.alive ? 'Жив' : 'Погиб'}</span></header>
+      <div className="u-stat-grid"><Meter label="Здоровье" value={character.health} max={character.maxHealth} /><Meter label="Силы" value={character.stamina} max={character.maxStamina} /><Meter label="Опыт" value={character.experience} max={character.experienceToNext} /><article><span>Монеты</span><strong>{character.coins}</strong></article><article><span>Чутьё</span><strong>{character.insight}</strong></article><article><span>Репутация</span><strong>{character.reputation}</strong></article><article><span>Слава рода</span><strong>{character.legacyGlory}</strong></article><article><span>Погибших</span><strong>{character.deaths}</strong></article></div>
+    </section>
+    <section className="u-panel">
+      <p className="eyebrow">Последствия не исчезают после боя</p><h2>Травмы</h2>
+      {character.injuries.length === 0 ? <p className="u-empty">Активных травм нет.</p> : <div className="u-injury-list">{character.injuries.map((injury) => <article key={injury.id}><div><strong>{injury.title}</strong><span>Тяжесть {injury.severity} · {injury.source}</span><small>{injury.kind === 'wounded-arm' ? `Боевые удары требуют ещё ${injury.severity} силы.` : `Отступление требует ещё ${injury.severity} силы.`}</small></div><button disabled={busy || Boolean(character.activeExpedition)} onClick={() => onTreat(injury.id)} type="button">Лечить</button></article>)}</div>}
+    </section>
+    <section className="u-panel">
+      <p className="eyebrow">Качество определяет цену содержания</p><h2>Снаряжение и трофеи</h2>
+      <div className="u-item-grid">{character.inventory.map((item) => <ItemCard busy={busy} item={item} key={item.id} onEquip={() => onEquip(item.id)} onRepair={() => onRepair(item.id)} />)}</div>
+    </section>
+    {story && <section className="u-panel"><p className="eyebrow">Последние записи</p><h2>Летопись</h2><div className="u-history">{story.history.slice(0, 12).map((entry, index) => <p key={`${entry}-${index}`}>{entry}</p>)}</div></section>}
+  </div>
+}
+
+export default function App() {
+  const [account, setAccount] = useState<OnlineSnapshot | null>(null)
+  const [character, setCharacter] = useState<SurvivalCharacter | null>(null)
+  const [story, setStory] = useState<ServerStory | null>(null)
+  const [contracts, setContracts] = useState<ServerContract[]>([])
   const [view, setView] = useState<View>('journey')
+  const [ready, setReady] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
 
-  useEffect(() => {
-    if (game) {
-      saveGame(game)
-      setGuild(loadGuild())
+  const refreshAll = useCallback(async () => {
+    try {
+      const nextAccount = await fetchOnlineSnapshot()
+      const [game, available] = await Promise.all([getServerStory(), getServerContracts()])
+      setAccount(nextAccount)
+      setCharacter(game.character as SurvivalCharacter | null)
+      setStory(game.story)
+      setContracts(available.contracts)
+    } catch (error) {
+      if ((error instanceof OnlineError || error instanceof PlayerApiError) && error.status === 401) {
+        setAccount(null)
+        setCharacter(null)
+        setStory(null)
+        setContracts([])
+      } else {
+        setNotice(describeError(error))
+      }
+    } finally {
+      setReady(true)
     }
-  }, [game])
+  }, [])
 
-  const scene = useMemo(() => game ? getScene(game) : null, [game])
-  const profession = game ? professionById[game.professionId] : null
+  useEffect(() => { void refreshAll() }, [refreshAll])
+  useEffect(() => {
+    const sync = async () => {
+      const completed = (await flushPlayerActionQueue()) + (await flushStoryActionQueue())
+      if (completed > 0) {
+        setNotice(`Синхронизировано действий: ${completed}.`)
+        await refreshAll()
+      }
+    }
+    window.addEventListener('online', sync)
+    void sync()
+    return () => window.removeEventListener('online', sync)
+  }, [refreshAll])
 
-  if (!game || !scene || !profession) {
-    return <CharacterCreation legacy={legacy} onCreate={(name, professionId) => setGame(createGame(name, professionId, legacy))} />
+  const applyGame = async (operation: () => Promise<{ character: unknown }>) => {
+    setBusy(true)
+    setNotice('')
+    try {
+      const result = await operation()
+      setCharacter(result.character as SurvivalCharacter)
+      const next = await getServerStory()
+      setCharacter(next.character as SurvivalCharacter | null)
+      setStory(next.story)
+    } catch (error) {
+      setNotice(describeError(error))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  if (game.isDead) {
-    return <DeathScreen game={game} onContinue={() => {
-      clearGame()
-      setGame(null)
-      setGuild(loadGuild())
-      setLegacy(loadLegacy())
-      setView('journey')
-    }} />
+  const choose = async (choiceId: string) => {
+    setBusy(true)
+    setNotice('')
+    try {
+      const result = await chooseServerStory(choiceId)
+      setCharacter(result.character as SurvivalCharacter | null)
+      setStory(result.story)
+      await refreshAll()
+    } catch (error) {
+      setNotice(describeError(error))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const restart = () => {
-    clearGame()
-    setGame(null)
-    setLegacy(loadLegacy())
-    setView('journey')
-  }
+  const title = useMemo(() => {
+    if (view === 'journey') return story?.scene.region ?? 'Северный рубеж'
+    if (view === 'character') return character?.name ?? 'Герой'
+    if (view === 'crafting') return 'Мастерская'
+    if (view === 'guild') return account?.guild?.name ?? 'Гильдия'
+    if (view === 'chat') return 'Общий костёр'
+    return 'Аккаунт'
+  }, [view, story, character, account])
 
-  const activeQuest = game.activeQuestId ? questById[game.activeQuestId] : null
-  const experienceTarget = experienceForNextLevel(game.level)
+  if (!ready) return <main className="u-loading"><h1>Пепел Княжеств</h1><p>Поднимаем серверную летопись…</p></main>
+  if (!account) return <GuestPortal onAuthenticated={refreshAll} />
 
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand"><span className="brand-mark">ПК</span><div><strong>Пепел Княжеств</strong><small>{scene.region}</small></div></div>
-        <div className="topbar-progress"><span>{game.playerName} · {profession.name}</span><strong>Ур. {game.level} · {game.experience}/{experienceTarget} опыта</strong></div>
-        <div className="world-clock"><span>День {game.day}</span><strong>{String(game.hour).padStart(2, '0')}:00</strong></div>
-      </header>
+  const nav: Array<[View, string]> = [
+    ['journey', 'Путь'],
+    ['character', 'Герой'],
+    ['crafting', 'Мастерская'],
+    ['guild', 'Гильдия'],
+    ['chat', 'Чаты'],
+    ['account', 'Аккаунт'],
+  ]
 
-      <aside className="sidebar">
-        <nav aria-label="Основная навигация">
-          <button className={view === 'journey' ? 'active' : ''} onClick={() => setView('journey')} type="button">Путь</button>
-          <button className={view === 'journal' ? 'active' : ''} onClick={() => setView('journal')} type="button">Контракты</button>
-          <button className={view === 'character' ? 'active' : ''} onClick={() => setView('character')} type="button">Персонаж</button>
-          <button className={view === 'chat' ? 'active' : ''} onClick={() => setView('chat')} type="button">Чаты</button>
-          <button className={view === 'guild' ? 'active' : ''} onClick={() => setView('guild')} type="button">Гильдия</button>
-        </nav>
-        <div className="sidebar-stats">
-          <Stat label="Здоровье" value={game.health} max={game.maxHealth} />
-          <Stat label="Силы" value={game.stamina} max={game.maxStamina} />
-          <Stat label="Чутьё" value={game.insight} max={20} />
-          <div className="coins"><span>Монеты</span><strong>{game.coins}</strong></div>
-          <div className="coins"><span>Репутация</span><strong>{game.reputation}</strong></div>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        {view === 'journey' && (game.combat ? (
-          <CombatPanel game={game} onAction={(action) => setGame((current) => current ? performCombatAction(current, action) : current)} />
-        ) : (
-          <section className="panel story-panel">
-            {activeQuest && <div className="active-contract"><span>Активный контракт</span><strong>{activeQuest.title}</strong></div>}
-            <header className="story-header"><p className="eyebrow">{scene.region}</p><h1>{scene.title}</h1></header>
-            <p className="story-text">{scene.text}</p>
-            <div className="choices">
-              {scene.choices.map((choice) => {
-                const allowed = canChoose(game, choice)
-                const requirement = requirementText(game, choice)
-                return (
-                  <button disabled={!allowed} key={choice.id} onClick={() => setGame((current) => current ? applyChoice(current, choice) : current)} type="button">
-                    <span>{choice.label}</span>
-                    {requirement && <small>{requirement}</small>}
-                    {!requirement && choice.requiresProfession && <small>Ремесло: {professionById[choice.requiresProfession].name}</small>}
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-        ))}
-
-        {view === 'journal' && <JournalPanel game={game} />}
-
-        {view === 'character' && (
-          <section className="panel character-panel">
-            <header className="panel-header"><div><p className="eyebrow">Живой человек, не класс</p><h2>{game.playerName}</h2></div><button className="danger-link" onClick={restart} type="button">Отказаться от забега</button></header>
-            <p><strong>{profession.name}.</strong> {profession.description}</p>
-            <div className="character-facts"><span>Уровень {game.level}</span><span>Репутация {game.reputation}</span><span>Контракты {game.completedQuestIds.length}</span><span>Очки развития {game.skillPoints}</span></div>
-            {game.skillPoints > 0 && (
-              <div className="skill-spend">
-                <h3>Развитие</h3>
-                <button type="button" onClick={() => setGame((current) => current ? spendSkillPoint(current, 'health') : current)}>+2 здоровья</button>
-                <button type="button" onClick={() => setGame((current) => current ? spendSkillPoint(current, 'stamina') : current)}>+2 силы</button>
-                <button type="button" onClick={() => setGame((current) => current ? spendSkillPoint(current, 'insight') : current)}>+2 чутья</button>
-              </div>
-            )}
-            <div className="inventory"><h3>Снаряжение</h3>{game.inventory.length ? game.inventory.map((item, index) => <span key={`${item}-${index}`}>{item}</span>) : <p>Пусто</p>}</div>
-            <div className="chronicle"><h3>Последние события</h3>{game.history.map((entry, index) => <p key={`${entry}-${index}`}>{entry}</p>)}</div>
-          </section>
-        )}
-
-        {view === 'chat' && <ChatPanel author={game.playerName} guild={guild} />}
-        {view === 'guild' && <GuildPanel game={game} guild={guild} onGame={setGame} onGuild={setGuild} />}
-      </main>
-
-      <footer className="mobile-nav">
-        <button className={view === 'journey' ? 'active' : ''} onClick={() => setView('journey')} type="button">Путь</button>
-        <button className={view === 'journal' ? 'active' : ''} onClick={() => setView('journal')} type="button">Заказы</button>
-        <button className={view === 'character' ? 'active' : ''} onClick={() => setView('character')} type="button">Герой</button>
-        <button className={view === 'chat' ? 'active' : ''} onClick={() => setView('chat')} type="button">Чаты</button>
-        <button className={view === 'guild' ? 'active' : ''} onClick={() => setView('guild')} type="button">Гильдия</button>
-      </footer>
-    </div>
-  )
+  return <div className="u-shell">
+    <header className="u-topbar">
+      <div className="u-brand"><span>ПК</span><div><strong>Пепел Княжеств</strong><small>{title}</small></div></div>
+      <div><span>{character ? `${character.name} · ${professionNames[character.profession]}` : account.user.displayName}</span><strong>{character ? `Ур. ${character.level} · ${character.coins} монет` : `@${account.user.username}`}</strong></div>
+      <div><span>{navigator.onLine ? 'Серверная связь' : 'Офлайн'}</span><strong>{account.guild ? `[${account.guild.tag}]` : 'Без гильдии'}</strong></div>
+    </header>
+    <aside className="u-sidebar">
+      <nav>{nav.map(([id, label]) => <button className={view === id ? 'active' : ''} key={id} onClick={() => setView(id)} type="button">{label}</button>)}</nav>
+      {character && <div className="u-side-stats"><Meter label="Здоровье" value={character.health} max={character.maxHealth} /><Meter label="Силы" value={character.stamina} max={character.maxStamina} /><div><span>Инструмент</span><strong>{character.equippedItem?.name ?? 'нет'}</strong><small>{character.equippedItem?.maxDurability ? `${character.equippedItem.durability}/${character.equippedItem.maxDurability}` : ''}</small></div>{character.injuries.length > 0 && <div className="danger"><span>Травмы</span><strong>{character.injuries.length}</strong></div>}</div>}
+    </aside>
+    <main className="u-main">
+      {notice && <p className="u-notice">{notice}</p>}
+      {view === 'journey' && <JourneyView busy={busy} character={character} contracts={contracts} onChoice={(id) => void choose(id)} onCombat={(action) => { const run = character?.activeExpedition; if (run) void applyGame(() => actInServerExpedition(run.id, action)) }} onCreate={(name, profession) => void applyGame(() => createServerCharacter(name, profession))} onHeir={(name, profession) => void applyGame(() => createServerHeir(name, profession))} onStart={(id) => void applyGame(() => startServerExpedition(id))} story={story} />}
+      {view === 'character' && (character ? <CharacterView busy={busy} character={character} onEquip={(id) => void applyGame(() => equipServerItem(id))} onRepair={(id) => void applyGame(() => repairServerItem(id))} onTreat={(id) => void applyGame(() => treatServerInjury(id))} story={story} /> : <CharacterCreation busy={busy} heir={false} onCreate={(name, profession) => void applyGame(() => createServerCharacter(name, profession))} />)}
+      {view === 'crafting' && <UnifiedCrafting character={character} onCharacter={setCharacter} />}
+      {view === 'guild' && <UnifiedGuild character={character} onCharacter={setCharacter} onRefresh={refreshAll} snapshot={account} />}
+      {view === 'chat' && <UnifiedChat author={account.user.displayName} guildId={account.guild?.id ?? null} />}
+      {view === 'account' && <section className="u-panel"><p className="eyebrow">Серверная личность</p><h2>{account.user.displayName}</h2><p>@{account.user.username}</p><div className="u-account-facts"><span>Создан: {new Date(account.user.createdAt).toLocaleDateString('ru-RU')}</span><span>{account.guild ? `Гильдия: [${account.guild.tag}] ${account.guild.name}` : 'Гильдии нет'}</span><span>{character ? `Поколение героя: ${character.generation}` : 'Герой ещё не создан'}</span></div><button className="u-danger-button" onClick={() => void logoutOnline().then(() => { setAccount(null); setCharacter(null); setStory(null); setView('journey') })} type="button">Выйти из аккаунта</button></section>}
+    </main>
+    <footer className="u-mobile-nav">{nav.map(([id, label]) => <button className={view === id ? 'active' : ''} key={id} onClick={() => setView(id)} type="button">{label}</button>)}</footer>
+  </div>
 }
-
-export default App
