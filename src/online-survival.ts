@@ -30,12 +30,15 @@ export interface SurvivalItem {
 
 export interface SurvivalInjury {
   id: string
-  kind: 'wounded-arm' | 'sprained-ankle' | string
+  kind: 'wounded-arm' | 'sprained-ankle' | 'salt-burn' | 'marsh-fever' | 'deep-cut' | string
   title: string
   severity: number
   status: 'active' | 'treated'
   source: string
   createdAt: number
+  naturalHealAt?: number | null
+  recoveryInterval?: number
+  recoveryNote?: string
 }
 
 export type SurvivalCharacter = Omit<ServerCharacter, 'inventory'> & {
@@ -45,6 +48,7 @@ export type SurvivalCharacter = Omit<ServerCharacter, 'inventory'> & {
   combatModifiers: {
     attackStaminaPenalty: number
     fleeStaminaPenalty: number
+    movementStaminaPenalty?: number
   }
 }
 
