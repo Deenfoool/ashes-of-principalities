@@ -14,6 +14,8 @@ import { MarketStore } from './market-store.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
 import { createStoryApiHandler } from './story-api.mjs'
 import { createSurvivalApiHandler } from './survival-api.mjs'
+import { createUniqueItemApiHandler } from './unique-item-api.mjs'
+import { UniqueItemStore } from './unique-item-store.mjs'
 import { PlayerStore } from './player-store.mjs'
 import { StoryStore } from './story-store.mjs'
 import { installSurvivalRewards } from './survival-rewards.mjs'
@@ -37,7 +39,10 @@ installSurvivalRewards(store.db)
 const crafting = new CraftingStore(store, players, survival)
 installCraftingMigrations(store.db)
 const market = new MarketStore(store, players)
+const artifacts = new UniqueItemStore(store, players, survival, market)
+artifacts.patchCrafting(crafting)
 const commissions = new CommissionStore(store, players, market)
+const handleUniqueItemApi = createUniqueItemApiHandler(store, artifacts)
 const handleCommissionApi = createCommissionApiHandler(store, commissions)
 const handleMarketApi = createMarketApiHandler(store, market)
 const handleCraftingApi = createCraftingApiHandler(store, crafting)
@@ -134,6 +139,7 @@ async function serveStatic(request, response) {
 }
 
 const server = createServer(async (request, response) => {
+  if (await handleUniqueItemApi(request, response)) return
   if (await handleCommissionApi(request, response)) return
   if (await handleMarketApi(request, response)) return
   if (await handleCraftingApi(request, response)) return
@@ -221,5 +227,5 @@ process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ashes server v0.9 listening on http://0.0.0.0:${port}`)
+  console.log(`Ashes server v0.10 listening on http://0.0.0.0:${port}`)
 })
