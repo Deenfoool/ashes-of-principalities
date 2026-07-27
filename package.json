@@ -1,7 +1,7 @@
 {
   "name": "ashes-of-principalities",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
@@ -10,8 +10,12 @@
     "dev": "node tools/dev.mjs",
     "dev:web": "vite --host 0.0.0.0",
     "dev:server": "node --watch server/server.mjs",
+    "test:server": "node --test server/*.test.mjs",
+    "test:game": "node tools/test-game.mjs",
+    "test": "npm run test:server && npm run test:game",
     "check": "tsc --noEmit",
-    "build": "npm run check && vite build",
+    "build:client": "vite build",
+    "build": "npm run test && npm run check && npm run build:client",
     "start": "node server/server.mjs --serve-dist",
     "preview": "vite preview --host 0.0.0.0"
   },
