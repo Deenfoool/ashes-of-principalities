@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ashes-shell-v1'
+const CACHE_NAME = 'ashes-shell-v2'
 const APP_SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/maskable-icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -15,6 +15,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
+  const url = new URL(event.request.url)
+
+  if (url.origin === self.location.origin && (url.pathname.startsWith('/api/') || url.pathname === '/ws')) {
+    event.respondWith(fetch(event.request))
+    return
+  }
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
@@ -33,7 +39,7 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
         .then((response) => {
-          if (response.ok && new URL(event.request.url).origin === self.location.origin) {
+          if (response.ok && url.origin === self.location.origin && response.type === 'basic') {
             const copy = response.clone()
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
           }

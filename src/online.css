@@ -1,0 +1,42 @@
+.account-panel small { color: var(--muted); }
+.account-explainer { max-width: 680px; color: var(--muted); line-height: 1.7; }
+.account-tabs { display: flex; gap: 8px; margin: 24px 0 8px; border-bottom: 1px solid var(--border); }
+.account-tabs button { border: 0; background: transparent; color: var(--muted); padding: 10px 14px; cursor: pointer; }
+.account-tabs button.active { color: var(--accent-strong); box-shadow: inset 0 -2px var(--accent); }
+.account-form { display: grid; gap: 4px; max-width: 520px; }
+.account-form .primary-action { margin-top: 18px; }
+.account-status { display: grid; gap: 6px; margin: 24px 0; padding: 18px; border: 1px solid rgba(145, 180, 135, 0.32); background: rgba(145, 180, 135, 0.06); }
+.account-status span { color: var(--success); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.invite-list { display: grid; gap: 9px; }
+.invite-list article { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 14px; border: 1px solid var(--border); }
+.invite-list article div { display: grid; gap: 4px; }
+.invite-list button, .inline-form button, .role-editor > button { border: 1px solid var(--accent); background: #72502d; padding: 10px 14px; cursor: pointer; }
+.empty-state.compact { margin: 18px 0; text-align: left; }
+.muted-line { color: var(--muted); }
+.form-notice { padding: 10px 12px; border: 1px solid rgba(145, 180, 135, 0.4); background: rgba(145, 180, 135, 0.08); color: var(--success) !important; }
+.treasury-log { display: grid; gap: 1px; margin-top: 12px; }
+.treasury-log p { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; margin: 0; padding: 9px 10px; border-bottom: 1px solid rgba(197, 164, 111, 0.1); color: var(--muted); font-size: 0.86rem; }
+.treasury-log strong { color: var(--success); }
+.treasury-log time { font-size: 0.76rem; }
+.inline-form { display: grid; grid-template-columns: 1fr minmax(180px, 0.45fr) auto; gap: 10px; align-items: end; }
+.inline-form input { min-width: 0; border: 1px solid var(--border); background: #171411; color: #eee1cf; padding: 12px 13px; }
+.role-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.role-list span { padding: 8px 11px; border: 1px solid var(--border); background: rgba(197, 155, 95, 0.06); }
+.permission-grid { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; color: var(--muted); }
+.permission-grid label { display: flex; gap: 7px; align-items: center; }
+.permission-grid input { accent-color: var(--accent); }
+.member-list { display: grid; gap: 8px; }
+.member-list article { display: grid; grid-template-columns: 1fr minmax(130px, auto) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--border); }
+.member-list article > div { display: grid; gap: 3px; }
+.member-list small { color: var(--muted); }
+.member-list select { border: 1px solid var(--border); background: #171411; color: #eee1cf; padding: 9px; }
+
+@media (max-width: 760px) {
+  .mobile-nav { grid-template-columns: repeat(6, 1fr); }
+  .mobile-nav button { font-size: 0.61rem; }
+  .invite-list article { align-items: flex-start; }
+  .treasury-log p { grid-template-columns: 1fr auto; }
+  .treasury-log time { grid-column: 1 / -1; }
+  .inline-form { grid-template-columns: 1fr; }
+  .member-list article { grid-template-columns: 1fr; align-items: stretch; }
+}

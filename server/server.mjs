@@ -3,15 +3,20 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
+import { createApiHandler, sessionTokenFromRequest } from './api.mjs'
 import { canReceive, createChatMessage, parsePacket, visibleHistory } from './protocol.mjs'
+import { GameStore } from './store.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const serveDist = process.argv.includes('--serve-dist')
 const port = Number(process.env.PORT || (serveDist ? 3000 : 3001))
 const dataDirectory = join(root, 'data')
 const chatFile = join(dataDirectory, 'chat.json')
+const databaseFile = process.env.DATABASE_PATH || join(dataDirectory, 'game.db')
 const messages = []
 const sessions = new WeakMap()
+const store = new GameStore(databaseFile)
+const handleApi = createApiHandler(store)
 let persistQueue = Promise.resolve()
 
 const systemMessage = (channel, text, guildId = null) => createChatMessage({
@@ -86,6 +91,7 @@ async function serveStatic(request, response) {
     response.writeHead(200, {
       'Content-Type': contentTypes[extname(filePath)] ?? 'application/octet-stream',
       'Cache-Control': shouldRevalidate ? 'no-cache' : 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
     })
     response.end(body)
   } catch {
@@ -100,11 +106,7 @@ async function serveStatic(request, response) {
 }
 
 const server = createServer(async (request, response) => {
-  if (request.url === '/api/health') {
-    response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
-    response.end(JSON.stringify({ ok: true, service: 'ashes-of-principalities', clients: wss.clients.size, messages: messages.length }))
-    return
-  }
+  if (await handleApi(request, response)) return
   await serveStatic(request, response)
 })
 
@@ -119,8 +121,17 @@ server.on('upgrade', (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (client) => wss.emit('connection', client, request))
 })
 
-wss.on('connection', (socket) => {
-  sessions.set(socket, { initialized: false, playerId: null, author: 'Странник', guildId: null, lastMessageAt: 0 })
+wss.on('connection', (socket, request) => {
+  const cookieAccount = store.authenticate(sessionTokenFromRequest(request))
+  const cookieGuild = cookieAccount ? store.getGuildForUser(cookieAccount.id) : null
+  sessions.set(socket, {
+    initialized: false,
+    playerId: cookieAccount?.id ?? null,
+    author: cookieAccount?.displayName ?? 'Странник',
+    guildId: cookieGuild?.id ?? null,
+    account: cookieAccount,
+    lastMessageAt: 0,
+  })
   socket.send(JSON.stringify({ type: 'ready' }))
 
   socket.on('message', (raw) => {
@@ -130,11 +141,17 @@ wss.on('connection', (socket) => {
     if (!session) return
 
     if (parsed.packet.type === 'hello') {
+      const account = session.account ?? (parsed.packet.token ? store.authenticate(parsed.packet.token) : null)
+      const guild = account ? store.getGuildForUser(account.id) : null
       session.initialized = true
-      session.playerId = parsed.packet.playerId
-      session.author = parsed.packet.author
-      session.guildId = parsed.packet.guildId
-      socket.send(JSON.stringify({ type: 'history', messages: visibleHistory(messages, session) }))
+      session.playerId = account?.id ?? parsed.packet.playerId
+      session.author = account?.displayName ?? parsed.packet.author
+      session.guildId = guild?.id ?? null
+      socket.send(JSON.stringify({
+        type: 'history',
+        messages: visibleHistory(messages, session),
+        authenticated: Boolean(account),
+      }))
       return
     }
 
@@ -161,6 +178,13 @@ wss.on('connection', (socket) => {
     }
   })
 })
+
+function closeGracefully() {
+  store.close()
+  process.exit(0)
+}
+process.once('SIGINT', closeGracefully)
+process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`Ashes server listening on http://0.0.0.0:${port}`)

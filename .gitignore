@@ -2,6 +2,7 @@ node_modules/
 dist/
 .test-build/
 data/*.json
+data/*.db*
 .env
 .env.*
 !.env.example
