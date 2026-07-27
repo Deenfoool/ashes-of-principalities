@@ -1,6 +1,6 @@
 import type { GuildBranchId } from './game/types'
 
-const TOKEN_KEY = 'ashes-of-principalities:online-token:v1'
+const ACCOUNT_HINT_KEY = 'ashes-of-principalities:online-account:v1'
 
 export interface OnlineUser {
   id: string
@@ -104,22 +104,21 @@ export class OnlineError extends Error {
   }
 }
 
-export const getOnlineToken = () => localStorage.getItem(TOKEN_KEY)
-export const hasOnlineToken = () => Boolean(getOnlineToken())
+// Session secrets live only in an HttpOnly cookie. This function remains for the
+// chat hello packet API, but deliberately never exposes the cookie to JavaScript.
+export const getOnlineToken = () => null
+export const hasOnlineToken = () => localStorage.getItem(ACCOUNT_HINT_KEY) === '1'
 
-const setOnlineToken = (token: string | null) => {
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-  else localStorage.removeItem(TOKEN_KEY)
+const setAccountHint = (enabled: boolean) => {
+  if (enabled) localStorage.setItem(ACCOUNT_HINT_KEY, '1')
+  else localStorage.removeItem(ACCOUNT_HINT_KEY)
 }
 
 async function api<T>(path: string, options: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<T> {
-  const token = getOnlineToken()
   const response = await fetch(path, {
     method: options.method ?? 'GET',
-    headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(options.auth !== false && token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    credentials: 'same-origin',
+    headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
     body: options.body ? JSON.stringify(options.body) : undefined,
   })
 
@@ -132,7 +131,7 @@ async function api<T>(path: string, options: { method?: string; body?: unknown; 
 
   if (!response.ok) {
     const error = payload as { error?: { code?: string; message?: string } } | null
-    if (response.status === 401) setOnlineToken(null)
+    if (response.status === 401) setAccountHint(false)
     throw new OnlineError(
       error?.error?.code ?? 'request-failed',
       error?.error?.message ?? 'Сервер не смог выполнить запрос.',
@@ -143,14 +142,14 @@ async function api<T>(path: string, options: { method?: string; body?: unknown; 
 }
 
 export async function registerOnline(input: { username: string; password: string; displayName: string }) {
-  const result = await api<{ token: string; user: OnlineUser }>('/api/auth/register', { method: 'POST', body: input, auth: false })
-  setOnlineToken(result.token)
+  const result = await api<{ user: OnlineUser }>('/api/auth/register', { method: 'POST', body: input, auth: false })
+  setAccountHint(true)
   return result.user
 }
 
 export async function loginOnline(input: { username: string; password: string }) {
-  const result = await api<{ token: string; user: OnlineUser }>('/api/auth/login', { method: 'POST', body: input, auth: false })
-  setOnlineToken(result.token)
+  const result = await api<{ user: OnlineUser }>('/api/auth/login', { method: 'POST', body: input, auth: false })
+  setAccountHint(true)
   return result.user
 }
 
@@ -158,7 +157,7 @@ export async function logoutOnline() {
   try {
     await api('/api/auth/logout', { method: 'POST' })
   } finally {
-    setOnlineToken(null)
+    setAccountHint(false)
   }
 }
 
