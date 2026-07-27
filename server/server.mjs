@@ -9,6 +9,7 @@ import { CommissionStore } from './commission-store.mjs'
 import { createCraftingApiHandler } from './crafting-api.mjs'
 import { installCraftingMigrations } from './crafting-migrations.mjs'
 import { CraftingStore } from './crafting-store.mjs'
+import { backfillRegionalMaterials } from './marsh-backfill.mjs'
 import { installMarshCrafting } from './marsh-crafting.mjs'
 import { installMarshMigrations } from './marsh-migrations.mjs'
 import { createMarshStoryApiHandler } from './marsh-story-api.mjs'
@@ -56,7 +57,8 @@ installRegionFixes(store.db, regions)
 installMarshMigrations(store.db)
 installMarshBalanceMigrations(store.db)
 const marshSystem = new MarshSystem(store, players)
-installMarshCrafting(store, players, crafting)
+const marshCrafting = installMarshCrafting(store, players, crafting)
+backfillRegionalMaterials(store.db, marshCrafting)
 const marshStories = new MarshStoryStore(store, players, stories, regions)
 const commissions = new CommissionStore(store, players, market)
 const handleUniqueItemApi = createUniqueItemApiHandler(store, artifacts)
