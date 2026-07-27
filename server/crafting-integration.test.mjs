@@ -82,3 +82,54 @@ test('guild foraging branch adds materials without allowing duplicate claims', (
     context.game.close()
   }
 })
+
+test('historical victories are normalized to base drops before current guild bonuses begin', () => {
+  const game = new GameStore(':memory:')
+  const players = new PlayerStore(game)
+  const stories = new StoryStore(game, players)
+  const survival = new SurvivalStore(game, players)
+  installSurvivalRewards(game.db)
+  try {
+    const account = game.register({ username: 'craft_history_guild', password: '12345678', displayName: 'Старый охотник' })
+    players.createCharacter(account.user.id, {
+      requestId: 'history-guild-create-0001', name: 'Лютобор', profession: 'hunter',
+    })
+    stories.publicStory(account.user.id)
+    game.db.prepare("UPDATE player_story_state SET scene_id = 'tavern' WHERE user_id = ?").run(account.user.id)
+    game.db.prepare('UPDATE player_characters SET coins = 20 WHERE user_id = ?').run(account.user.id)
+    game.db.prepare(`
+      INSERT INTO player_inventory(
+        user_id, item_id, item_name, quantity, item_type, quality,
+        durability, max_durability, equipped, repair_count
+      ) VALUES (?, 'founder-seal', 'Печать основателя', 1, 'quest', 'good', 0, 0, 0, 0)
+    `).run(account.user.id)
+    const founded = survival.createPaidGuild(account.user.id, {
+      requestId: 'history-guild-found-0001', name: 'Старый промысел', tag: 'СП',
+    })
+    game.db.prepare('UPDATE guilds SET foraging = 3 WHERE id = ?').run(founded.guild.id)
+
+    const now = Date.now()
+    game.db.prepare(`
+      INSERT INTO player_expeditions(
+        id, user_id, contract_id, status, turn, enemy_id, enemy_name,
+        enemy_health, enemy_max_health, enemy_intent, last_log_json, started_at, updated_at
+      ) VALUES ('historical-foraging-win', ?, 'ash-wolf', 'won', 3, 'ash-wolf', 'Пепельный волк',
+        0, 11, 'attack', '[]', ?, ?)
+    `).run(account.user.id, now, now)
+
+    new CraftingStore(game, players, survival)
+    assert.equal(quantity(game, account.user.id, 'burnt-hide'), 4)
+
+    installCraftingMigrations(game.db)
+    installCraftingMigrations(game.db)
+
+    assert.equal(quantity(game, account.user.id, 'burnt-hide'), 2)
+    assert.equal(quantity(game, account.user.id, 'charcoal'), 1)
+    assert.equal(game.db.prepare(`
+      SELECT quantity FROM player_material_claims
+      WHERE expedition_id = 'historical-foraging-win' AND item_id = 'burnt-hide'
+    `).get().quantity, 2)
+  } finally {
+    game.close()
+  }
+})
