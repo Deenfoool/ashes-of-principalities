@@ -1,3 +1,4 @@
+import { marshScenes } from './marsh-content.mjs'
 import { StoreError } from './store.mjs'
 
 const ENDING_CHOICES = new Set([
@@ -9,6 +10,9 @@ const ENDING_CHOICES = new Set([
 export function installMarshStoryFixes(db, marshStories) {
   if (marshStories.__endingFixInstalled) return
   marshStories.__endingFixInstalled = true
+
+  const filterChoice = marshScenes['brine-cellar']?.choices.find((choice) => choice.id === 'fever-filter')
+  if (filterChoice) filterChoice.removeItem = 'charcoal'
 
   const originalIsUnlocked = marshStories.isUnlocked.bind(marshStories)
   marshStories.isUnlocked = (userId) => {
