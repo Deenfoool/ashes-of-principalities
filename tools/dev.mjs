@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 
 const children = [
-  spawn(process.execPath, ['--watch', 'server/server-v05.mjs'], { stdio: 'inherit' }),
+  spawn(process.execPath, ['--watch', 'server/server.mjs'], { stdio: 'inherit' }),
   spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev:web'], { stdio: 'inherit' }),
 ]
 
