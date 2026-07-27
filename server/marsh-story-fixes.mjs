@@ -53,7 +53,16 @@ export function installMarshStoryFixes(db, marshStories) {
           WHERE user_id = ? AND request_id = ?
         `).get(userId, requestId)
       : null
-    if (receipt?.action === expectedAction) return JSON.parse(receipt.result_json)
+    if (receipt) {
+      if (receipt.action !== expectedAction) {
+        throw new StoreError(
+          'request-id-conflict',
+          'Этот идентификатор уже использован для другого действия.',
+          409,
+        )
+      }
+      return JSON.parse(receipt.result_json)
+    }
 
     if (!marshStories.isUnlocked(userId)) {
       throw new StoreError(
