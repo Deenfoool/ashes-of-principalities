@@ -98,17 +98,22 @@ export async function chooseServerStory(choiceId: string): Promise<ServerStorySn
   } catch (error) {
     if (error instanceof PlayerApiError) throw error
     const queue = readQueue()
-    if (!queue.some((item) => item.id === requestId)) {
-      queue.push({ id: requestId, choiceId, createdAt: Date.now() })
-      writeQueue(queue)
+    if (queue.length > 0) {
+      throw new PlayerApiError(
+        'story-sync-pending',
+        'Предыдущее решение ещё ждёт связи с сервером. Сначала дождись синхронизации.',
+        409,
+      )
     }
+    queue.push({ id: requestId, choiceId, createdAt: Date.now() })
+    writeQueue(queue)
     throw new QueuedPlayerAction()
   }
 }
 
 export async function flushStoryActionQueue() {
   const queue = readQueue()
-  let completed = 0
+  let processed = 0
   for (const item of queue) {
     try {
       const response = await fetch('/api/story/choose', {
@@ -118,7 +123,7 @@ export async function flushStoryActionQueue() {
       })
       if (response.status === 401) break
       if (response.ok || (response.status >= 400 && response.status < 500)) {
-        completed += 1
+        processed += 1
         writeQueue(readQueue().filter((queued) => queued.id !== item.id))
         continue
       }
@@ -127,5 +132,5 @@ export async function flushStoryActionQueue() {
       break
     }
   }
-  return completed
+  return processed
 }
