@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, FormEvent, MouseEvent } from 'react'
 import {
   actInServerExpedition,
   createServerCharacter,
@@ -98,6 +99,21 @@ export default function ServerStoryJourney() {
   useEffect(() => { void refresh(true) }, [refresh])
   useEffect(() => { if (open) void refresh() }, [open, refresh])
   useEffect(() => {
+    const verifySession = () => void refresh()
+    const handleDocumentClick = (event: Event) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('.account-panel .danger-link')) {
+        window.setTimeout(verifySession, 250)
+      }
+    }
+    window.addEventListener('focus', verifySession)
+    document.addEventListener('click', handleDocumentClick)
+    return () => {
+      window.removeEventListener('focus', verifySession)
+      document.removeEventListener('click', handleDocumentClick)
+    }
+  }, [refresh])
+  useEffect(() => {
     document.body.classList.toggle('server-account-mode', authenticated === true)
     return () => document.body.classList.remove('server-account-mode')
   }, [authenticated])
@@ -170,7 +186,7 @@ export default function ServerStoryJourney() {
         {active ? 'Идёт бой' : story?.chapterComplete ? 'Серверный мир' : 'Первая глава'}
       </button>
 
-      {open && <div className="server-journey-backdrop" role="presentation" onMouseDown={(event) => {
+      {open && <div className="server-journey-backdrop" role="presentation" onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
         if (event.target === event.currentTarget) closeToSocial()
       }}>
         <section className="server-journey-panel server-story-panel" role="dialog" aria-modal="true" aria-label="Серверная глава">
@@ -184,13 +200,13 @@ export default function ServerStoryJourney() {
 
           {authenticated === false && <div className="server-empty"><h3>Нужен аккаунт</h3><p>Гостевой пролог остаётся доступен под этим окном. Для единого героя, серверного сюжета, гильдии и общей экономики войди через раздел «Аккаунт».</p></div>}
 
-          {authenticated && !character && <form className="server-character-create" onSubmit={(event) => {
+          {authenticated && !character && <form className="server-character-create" onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault()
             void performPlayer(() => createServerCharacter(name, profession))
           }}>
             <h3>Записать первого героя рода</h3>
-            <label>Имя героя<input maxLength={24} minLength={2} onChange={(event) => setName(event.target.value)} required value={name} /></label>
-            <label>Ремесло<select onChange={(event) => setProfession(event.target.value as OnlineProfession)} value={profession}>{(Object.keys(professionNames) as OnlineProfession[]).map((id) => <option key={id} value={id}>{professionNames[id]}</option>)}</select></label>
+            <label>Имя героя<input maxLength={24} minLength={2} onChange={(event: ChangeEvent<HTMLInputElement>) => setName(event.target.value)} required value={name} /></label>
+            <label>Ремесло<select onChange={(event: ChangeEvent<HTMLSelectElement>) => setProfession(event.target.value as OnlineProfession)} value={profession}>{(Object.keys(professionNames) as OnlineProfession[]).map((id) => <option key={id} value={id}>{professionNames[id]}</option>)}</select></label>
             <button className="primary-action" disabled={busy} type="submit">Выйти на северную дорогу</button>
           </form>}
 
@@ -210,13 +226,13 @@ export default function ServerStoryJourney() {
             </div>
             <p className="server-xp-caption">До следующего уровня: {Math.max(0, 100 - experiencePercent)}% пути. Слава рода: {character.legacyGlory}.</p>
 
-            {!character.alive && <form className="server-heir" onSubmit={(event) => {
+            {!character.alive && <form className="server-heir" onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault()
               void performPlayer(() => createServerHeir(name, profession))
             }}>
               <h3>Продолжить род</h3><p>Наследник начнёт первую главу заново, сохранив славу рода и часть наследства.</p>
-              <label>Имя наследника<input maxLength={24} minLength={2} onChange={(event) => setName(event.target.value)} required value={name} /></label>
-              <label>Ремесло<select onChange={(event) => setProfession(event.target.value as OnlineProfession)} value={profession}>{(Object.keys(professionNames) as OnlineProfession[]).map((id) => <option key={id} value={id}>{professionNames[id]}</option>)}</select></label>
+              <label>Имя наследника<input maxLength={24} minLength={2} onChange={(event: ChangeEvent<HTMLInputElement>) => setName(event.target.value)} required value={name} /></label>
+              <label>Ремесло<select onChange={(event: ChangeEvent<HTMLSelectElement>) => setProfession(event.target.value as OnlineProfession)} value={profession}>{(Object.keys(professionNames) as OnlineProfession[]).map((id) => <option key={id} value={id}>{professionNames[id]}</option>)}</select></label>
               <button className="primary-action" disabled={busy} type="submit">Создать наследника</button>
             </form>}
 
@@ -249,7 +265,7 @@ export default function ServerStoryJourney() {
               </section>}
             </>}
 
-            {character.alive && <section className="server-donation"><div><p className="eyebrow">Общая казна</p><h3>Внести серверные монеты</h3><p>Монеты списываются у этого героя в одной транзакции с пополнением казны.</p></div><form onSubmit={(event) => { event.preventDefault(); void performPlayer(() => donateServerCoins(Number(donation))) }}><input min="1" onChange={(event) => setDonation(event.target.value)} type="number" value={donation} /><button disabled={busy || Number(donation) < 1} type="submit">Внести</button></form></section>}
+            {character.alive && <section className="server-donation"><div><p className="eyebrow">Общая казна</p><h3>Внести серверные монеты</h3><p>Монеты списываются у этого героя в одной транзакции с пополнением казны.</p></div><form onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void performPlayer(() => donateServerCoins(Number(donation))) }}><input min="1" onChange={(event: ChangeEvent<HTMLInputElement>) => setDonation(event.target.value)} type="number" value={donation} /><button disabled={busy || Number(donation) < 1} type="submit">Внести</button></form></section>}
 
             <section className="server-inventory"><h3>Снаряжение и трофеи</h3><div>{character.inventory.length ? character.inventory.map((item) => <span key={item.id}>{item.name}{item.quantity > 1 ? ` ×${item.quantity}` : ''}</span>) : <p>Пусто</p>}</div></section>
 
