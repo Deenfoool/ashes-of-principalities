@@ -4,6 +4,9 @@ import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
 import { createApiHandler, sessionTokenFromRequest } from './api.mjs'
+import { createCraftingApiHandler } from './crafting-api.mjs'
+import { installCraftingMigrations } from './crafting-migrations.mjs'
+import { CraftingStore } from './crafting-store.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
 import { createStoryApiHandler } from './story-api.mjs'
 import { createSurvivalApiHandler } from './survival-api.mjs'
@@ -27,6 +30,9 @@ const players = new PlayerStore(store)
 const stories = new StoryStore(store, players)
 const survival = new SurvivalStore(store, players)
 installSurvivalRewards(store.db)
+const crafting = new CraftingStore(store, players, survival)
+installCraftingMigrations(store.db)
+const handleCraftingApi = createCraftingApiHandler(store, crafting)
 const handleSurvivalApi = createSurvivalApiHandler(store, survival)
 const handleStoryApi = createStoryApiHandler(store, players, stories)
 const handlePlayerApi = createPlayerApiHandler(store, players, stories)
@@ -120,6 +126,7 @@ async function serveStatic(request, response) {
 }
 
 const server = createServer(async (request, response) => {
+  if (await handleCraftingApi(request, response)) return
   if (await handleSurvivalApi(request, response)) return
   if (await handleStoryApi(request, response)) return
   if (await handlePlayerApi(request, response)) return
@@ -204,5 +211,5 @@ process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ashes server v0.6 listening on http://0.0.0.0:${port}`)
+  console.log(`Ashes server v0.7 listening on http://0.0.0.0:${port}`)
 })

@@ -1,0 +1,50 @@
+.crafting-shell { max-width: 1500px; }
+.crafting-overview { background: radial-gradient(circle at 90% 0%, rgba(196,154,93,.12), transparent 34%), var(--u-surface); }
+.craft-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.craft-summary article { display: grid; gap: 7px; border: 1px solid var(--u-border); background: rgba(9,7,6,.42); padding: 13px; }
+.craft-summary span { color: var(--u-muted); }
+.craft-summary strong { font-size: 1.15rem; }
+.craft-supplies { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.craft-supplies article { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; align-items: center; border: 1px solid var(--u-border); background: rgba(196,154,93,.035); padding: 13px; }
+.craft-supplies article span { grid-column: 1 / -1; color: var(--u-muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .08em; }
+.craft-supplies article b { color: var(--u-accent); }
+.craft-filters { display: flex; flex-wrap: wrap; gap: 7px; }
+.craft-filters button.active { border-color: var(--u-accent); background: rgba(196,154,93,.12); }
+.craft-recipes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.craft-recipe { display: flex; flex-direction: column; gap: 12px; min-height: 280px; border: 1px solid var(--u-border); background: rgba(9,7,6,.4); padding: 16px; }
+.craft-recipe.available { border-color: rgba(196,154,93,.46); }
+.craft-recipe.locked { opacity: .72; }
+.craft-recipe header { display: grid; gap: 7px; }
+.craft-recipe header > div { display: grid; gap: 5px; }
+.craft-recipe header strong { font-size: 1.06rem; text-transform: uppercase; }
+.craft-recipe header span { color: var(--u-accent); }
+.craft-recipe header small, .craft-recipe p { color: var(--u-muted); }
+.craft-recipe p { flex: 1; margin: 0; }
+.craft-costs { display: flex; flex-wrap: wrap; gap: 6px; }
+.craft-costs span { border: 1px solid var(--u-border); background: rgba(196,154,93,.05); padding: 6px 8px; font-size: .8rem; }
+.craft-recipe > button { min-height: 44px; }
+.craft-recipe.available > button { border-color: var(--u-accent); background: #4d3522; }
+.craft-history { display: grid; }
+.craft-history p { display: grid; grid-template-columns: 1fr auto; gap: 14px; margin: 0; padding: 9px 0; border-bottom: 1px solid var(--u-border); }
+.craft-history time { color: var(--u-muted); }
+
+@media (max-width: 1100px) {
+  .craft-recipes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .craft-supplies { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .u-shell { padding-bottom: 76px; }
+  .u-mobile-nav { grid-template-columns: repeat(6, minmax(0, 1fr)); overflow-x: auto; }
+  .u-mobile-nav button { min-width: 64px; font-size: .68rem; padding: 13px 2px; }
+  .craft-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .craft-supplies, .craft-recipes { grid-template-columns: 1fr; }
+  .craft-recipe { min-height: 0; }
+  .craft-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .craft-filters button { padding-inline: 5px; font-size: .76rem; }
+  .craft-history p { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 420px) {
+  .craft-summary { grid-template-columns: 1fr; }
+}
