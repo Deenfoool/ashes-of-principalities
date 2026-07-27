@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import UnifiedArtifacts from './UnifiedArtifacts'
 import UnifiedCommissions from './UnifiedCommissions'
 import { PlayerApiError } from './online-player'
 import {
@@ -13,7 +14,7 @@ import type { SurvivalCharacter } from './online-survival'
 
 const qualityNames: Record<string, string> = { worn: 'изношенное', common: 'обычное', good: 'добротное', masterwork: 'мастерское' }
 const statusNames: Record<string, string> = { active: 'Активно', sold: 'Продано', cancelled: 'Отменено', expired: 'Срок истёк' }
-type Tab = 'market' | 'mine' | 'history' | 'orders'
+type Tab = 'market' | 'mine' | 'history' | 'orders' | 'artifacts'
 const marketError = (error: unknown) => error instanceof PlayerApiError ? error.message : 'Не удалось связаться с рынком.'
 const deadline = (timestamp: number) => {
   const left = Math.max(0, timestamp - Date.now())
@@ -99,7 +100,7 @@ export default function UnifiedMarket({ character, onCharacter }: {
   return <div className="u-stack m-market">
     <section className="u-panel">
       <header className="u-section-head">
-        <div><p className="eyebrow">Сделки и заказы подтверждает сервер</p><h2>Торговая площадь</h2></div>
+        <div><p className="eyebrow">Сделки, заказы и уникальные экземпляры подтверждает сервер</p><h2>Торговая площадь</h2></div>
         <div className="m-market-summary"><span>Монеты</span><strong>{snapshot.character?.coins ?? character.coins}</strong><small>Объявление живёт {snapshot.listingLifetimeHours} часа</small></div>
       </header>
       <div className="m-market-toolbar">
@@ -107,6 +108,7 @@ export default function UnifiedMarket({ character, onCharacter }: {
           <button className={tab === 'market' ? 'active' : ''} onClick={() => setTab('market')} type="button">Рынок · {snapshot.listings.length}</button>
           <button className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')} type="button">Мои объявления · {snapshot.ownListings.length}</button>
           <button className={tab === 'orders' ? 'active' : ''} onClick={() => setTab('orders')} type="button">Заказы мастерам</button>
+          <button className={tab === 'artifacts' ? 'active' : ''} onClick={() => setTab('artifacts')} type="button">Уникальные вещи</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')} type="button">История · {snapshot.trades.length}</button>
         </div>
         <button disabled={busy} onClick={() => void load()} type="button">Обновить</button>
@@ -149,6 +151,7 @@ export default function UnifiedMarket({ character, onCharacter }: {
     </>}
 
     {tab === 'orders' && <UnifiedCommissions character={character} onCharacter={onCharacter} />}
+    {tab === 'artifacts' && <UnifiedArtifacts character={character} onCharacter={onCharacter} />}
 
     {tab === 'history' && <section className="u-panel">
       <p className="eyebrow">Неизменяемый журнал</p><h2>Последние сделки</h2>
