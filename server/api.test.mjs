@@ -70,10 +70,13 @@ test('account and guild HTTP flow uses HttpOnly session cookies', async () => {
       method: 'POST', cookie: recruit.cookie,
     })
     assert.equal(accepted.data.guild.memberCount, 2)
-    const deposit = await request(api.base, '/api/guilds/treasury/deposit', {
+
+    const legacyDeposit = await request(api.base, '/api/guilds/treasury/deposit', {
       method: 'POST', cookie: recruit.cookie, body: { amount: 7 },
     })
-    assert.equal(deposit.data.guild.treasuryCoins, 7)
+    assert.equal(legacyDeposit.status, 409)
+    assert.equal(legacyDeposit.data.error.code, 'server-character-required')
+
     const members = await request(api.base, '/api/guilds/members', { cookie: founder.cookie })
     assert.equal(members.data.members.length, 2)
   } finally {
