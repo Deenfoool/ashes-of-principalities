@@ -105,6 +105,7 @@ interface QueuedOperation {
 }
 
 const QUEUE_KEY = 'ashes-of-principalities:offline-actions:v1'
+const SEQUENTIAL_PATHS = new Set(['/api/player/expeditions', '/api/player/expeditions/action'])
 
 export class PlayerApiError extends Error {
   code: string
@@ -185,6 +186,9 @@ async function post<T>(
   } catch (error) {
     if (error instanceof PlayerApiError || options.queueOnNetworkFailure === false) throw error
     const queue = readQueue()
+    if (SEQUENTIAL_PATHS.has(path) && queue.some((operation) => operation.path === path)) {
+      throw new QueuedPlayerAction()
+    }
     if (!queue.some((operation) => operation.id === requestId)) {
       queue.push({ id: requestId, path, body: payload, createdAt: Date.now() })
       writeQueue(queue)
