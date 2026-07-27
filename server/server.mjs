@@ -9,6 +9,7 @@ import { createStoryApiHandler } from './story-api.mjs'
 import { createSurvivalApiHandler } from './survival-api.mjs'
 import { PlayerStore } from './player-store.mjs'
 import { StoryStore } from './story-store.mjs'
+import { installSurvivalRewards } from './survival-rewards.mjs'
 import { SurvivalStore } from './survival-store.mjs'
 import { canReceive, createChatMessage, parsePacket, visibleHistory } from './protocol.mjs'
 import { GameStore } from './store.mjs'
@@ -25,6 +26,7 @@ const store = new GameStore(databaseFile)
 const players = new PlayerStore(store)
 const stories = new StoryStore(store, players)
 const survival = new SurvivalStore(store, players)
+installSurvivalRewards(store.db)
 const handleSurvivalApi = createSurvivalApiHandler(store, survival)
 const handleStoryApi = createStoryApiHandler(store, players, stories)
 const handlePlayerApi = createPlayerApiHandler(store, players, stories)
