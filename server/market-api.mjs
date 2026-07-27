@@ -42,30 +42,27 @@ export function createMarketApiHandler(store, market) {
     try {
       const user = requireUser(store, request)
       if (request.method === 'GET' && url.pathname === '/api/market') {
-        sendJson(response, 200, market.snapshot(user.id))
+        sendJson(response, 200, market.snapshot(user.id, {
+          query: url.searchParams.get('q') ?? '',
+          type: url.searchParams.get('type') ?? 'all',
+          sort: url.searchParams.get('sort') ?? 'newest',
+        }))
         return true
       }
-
       if (request.method === 'POST' && url.pathname === '/api/market/listings') {
-        const body = await readJson(request)
-        sendJson(response, 200, market.createListing(user.id, body))
+        sendJson(response, 200, market.createListing(user.id, await readJson(request)))
         return true
       }
-
       const buyMatch = url.pathname.match(/^\/api\/market\/listings\/([^/]+)\/buy$/)
       if (request.method === 'POST' && buyMatch) {
-        const body = await readJson(request)
-        sendJson(response, 200, market.buyListing(user.id, decodeURIComponent(buyMatch[1]), body))
+        sendJson(response, 200, market.buyListing(user.id, decodeURIComponent(buyMatch[1]), await readJson(request)))
         return true
       }
-
       const cancelMatch = url.pathname.match(/^\/api\/market\/listings\/([^/]+)\/cancel$/)
       if (request.method === 'POST' && cancelMatch) {
-        const body = await readJson(request)
-        sendJson(response, 200, market.cancelListing(user.id, decodeURIComponent(cancelMatch[1]), body))
+        sendJson(response, 200, market.cancelListing(user.id, decodeURIComponent(cancelMatch[1]), await readJson(request)))
         return true
       }
-
       sendJson(response, 404, { error: { code: 'not-found', message: 'Маршрут не найден.' } })
       return true
     } catch (error) {
