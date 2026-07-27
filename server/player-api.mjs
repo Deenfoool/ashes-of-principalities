@@ -47,7 +47,7 @@ function requireFreePlay(stories, userId) {
   }
 }
 
-export function createPlayerApiHandler(store, players, stories = null) {
+export function createPlayerApiHandler(store, players, stories = null, regions = null) {
   return async function handlePlayerApi(request, response) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     const isPlayerRoute = url.pathname.startsWith('/api/player/')
@@ -57,12 +57,13 @@ export function createPlayerApiHandler(store, players, stories = null) {
     if (!isPlayerRoute) return false
 
     try {
+      const user = requireUser(store, request)
+
       if (request.method === 'GET' && url.pathname === '/api/player/contracts') {
-        sendJson(response, 200, { contracts: expeditionContracts })
+        requireFreePlay(stories, user.id)
+        sendJson(response, 200, regions ? regions.snapshot(user.id) : { contracts: expeditionContracts, regions: [], rotationEndsAt: null })
         return true
       }
-
-      const user = requireUser(store, request)
 
       if (request.method === 'GET' && url.pathname === '/api/player') {
         sendJson(response, 200, { character: players.getCharacter(user.id) })
