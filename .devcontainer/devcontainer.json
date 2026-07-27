@@ -1,0 +1,15 @@
+{
+  "name": "Пепел Княжеств",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  "postCreateCommand": "npm install",
+  "forwardPorts": [5173, 3001],
+  "portsAttributes": {
+    "5173": { "label": "Игра", "onAutoForward": "openPreview" },
+    "3001": { "label": "Игровой сервер", "onAutoForward": "silent" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+    }
+  }
+}
