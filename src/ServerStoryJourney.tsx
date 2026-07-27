@@ -78,7 +78,7 @@ export default function ServerStoryJourney() {
       setStory(snapshot.story)
       setContracts(available.contracts)
       setAuthenticated(true)
-      if (allowAutoOpen && snapshot.character && !autoOpened.current) {
+      if (allowAutoOpen && !autoOpened.current) {
         autoOpened.current = true
         setOpen(true)
       }
@@ -96,6 +96,11 @@ export default function ServerStoryJourney() {
   }, [])
 
   useEffect(() => { void refresh(true) }, [refresh])
+  useEffect(() => { if (open) void refresh() }, [open, refresh])
+  useEffect(() => {
+    document.body.classList.toggle('server-account-mode', authenticated === true)
+    return () => document.body.classList.remove('server-account-mode')
+  }, [authenticated])
 
   useEffect(() => {
     const synchronize = async () => {
@@ -146,6 +151,11 @@ export default function ServerStoryJourney() {
     }
   }
 
+  const closeToSocial = () => {
+    document.querySelector<HTMLButtonElement>('.sidebar nav button:nth-child(4)')?.click()
+    setOpen(false)
+  }
+
   const active = character?.activeExpedition
   const completedQuests = story?.quests.filter((quest) => quest.status === 'completed').length ?? 0
   const professionLabel = character ? professionNames[character.profession] : ''
@@ -161,12 +171,12 @@ export default function ServerStoryJourney() {
       </button>
 
       {open && <div className="server-journey-backdrop" role="presentation" onMouseDown={(event) => {
-        if (event.target === event.currentTarget) setOpen(false)
+        if (event.target === event.currentTarget) closeToSocial()
       }}>
         <section className="server-journey-panel server-story-panel" role="dialog" aria-modal="true" aria-label="Серверная глава">
           <header className="server-journey-header">
             <div><p className="eyebrow">Единая серверная летопись</p><h2>Пепел Княжеств</h2></div>
-            <div className="server-panel-actions"><button disabled={busy} onClick={() => void refresh()} type="button">Обновить</button><button onClick={() => setOpen(false)} type="button">Социальные разделы</button></div>
+            <div className="server-panel-actions"><button disabled={busy} onClick={() => void refresh()} type="button">Обновить</button><button onClick={closeToSocial} type="button">Социальные разделы</button></div>
           </header>
 
           {notice && <p className="server-notice">{notice}</p>}
