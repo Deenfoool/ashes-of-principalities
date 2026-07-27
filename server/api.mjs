@@ -122,10 +122,11 @@ export function createApiHandler(store) {
       }
 
       if (request.method === 'POST' && url.pathname === '/api/guilds/treasury/deposit') {
-        const { user } = requireUser(store, request)
-        const body = await readJson(request)
-        sendJson(response, 200, { guild: store.depositCoins(user.id, body.amount) })
-        return true
+        throw new StoreError(
+          'server-character-required',
+          'Взнос проводится через серверного героя, чтобы монеты нельзя было создать из воздуха.',
+          409,
+        )
       }
 
       if (request.method === 'GET' && url.pathname === '/api/guilds/treasury/log') {
@@ -135,10 +136,11 @@ export function createApiHandler(store) {
       }
 
       if (request.method === 'POST' && url.pathname === '/api/guilds/progress') {
-        const { user } = requireUser(store, request)
-        const body = await readJson(request)
-        sendJson(response, 200, { guild: store.progressTask(user.id, body.taskId, body.amount) })
-        return true
+        throw new StoreError(
+          'server-derived-progress',
+          'Прогресс гильдии начисляется только за подтверждённые сервером действия.',
+          403,
+        )
       }
 
       if (request.method === 'POST' && url.pathname === '/api/guilds/tree/upgrade') {

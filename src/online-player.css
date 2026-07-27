@@ -1,0 +1,231 @@
+.server-journey-toggle {
+  position: fixed;
+  z-index: 45;
+  right: 18px;
+  bottom: 18px;
+  border: 1px solid var(--accent);
+  background: linear-gradient(180deg, #8b6237, #624329);
+  color: #f7ead5;
+  padding: 12px 16px;
+  cursor: pointer;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, .4);
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.server-journey-toggle.active-run { animation: server-pulse 1.8s infinite; }
+.server-journey-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(5, 4, 3, .82);
+  backdrop-filter: blur(8px);
+}
+.server-journey-panel {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  background: #17130f;
+  border: 1px solid var(--border);
+  box-shadow: 0 30px 120px rgba(0, 0, 0, .62);
+  padding: clamp(18px, 3vw, 34px);
+}
+.server-journey-header,
+.server-character-title,
+.server-expedition header,
+.server-section-title,
+.server-donation {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+.server-journey-header h2,
+.server-character-title h3,
+.server-expedition h3,
+.server-section-title h3,
+.server-donation h3,
+.server-inventory h3,
+.server-character-create h3,
+.server-heir h3 {
+  margin: 0;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  text-transform: uppercase;
+}
+.server-panel-actions { display: flex; gap: 8px; }
+.server-panel-actions button,
+.server-section-title button,
+.server-donation button,
+.server-contract-grid button,
+.server-combat-actions button {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: inherit;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.server-panel-actions button:hover:not(:disabled),
+.server-section-title button:hover:not(:disabled),
+.server-donation button:hover:not(:disabled),
+.server-contract-grid button:hover:not(:disabled),
+.server-combat-actions button:hover:not(:disabled) { border-color: var(--accent); }
+.server-panel-actions button:disabled,
+.server-section-title button:disabled,
+.server-donation button:disabled,
+.server-contract-grid button:disabled,
+.server-combat-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.server-notice,
+.server-loading {
+  border-left: 3px solid var(--accent);
+  padding: 10px 13px;
+  background: rgba(197, 155, 95, .08);
+  color: #d9cbb7;
+}
+.server-empty,
+.server-character-create,
+.server-heir {
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 22px;
+}
+.server-character-create,
+.server-heir { display: grid; gap: 14px; }
+.server-character-create label,
+.server-heir label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+.server-character-create input,
+.server-character-create select,
+.server-heir input,
+.server-heir select,
+.server-donation input {
+  border: 1px solid var(--border);
+  background: #100e0c;
+  color: #efe4d2;
+  padding: 11px 12px;
+}
+.server-character { display: grid; gap: 24px; margin-top: 24px; }
+.server-character-title { border-bottom: 1px solid var(--border); padding-bottom: 18px; }
+.server-character-title h3 { font-size: 2rem; }
+.server-character-title span { color: var(--muted); }
+.server-life {
+  border: 1px solid var(--border);
+  padding: 7px 10px;
+  text-transform: uppercase;
+  font-size: .75rem;
+  letter-spacing: .08em;
+}
+.server-life.alive { color: #a9c89f; border-color: rgba(126, 169, 113, .45); }
+.server-life.dead { color: #d58b7b; border-color: rgba(185, 105, 87, .45); }
+.server-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.server-meter,
+.server-plain-stat {
+  border: 1px solid var(--border);
+  background: rgba(197, 155, 95, .04);
+  padding: 12px;
+}
+.server-meter > div:first-child,
+.server-plain-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.server-meter span,
+.server-plain-stat span { color: var(--muted); }
+.server-meter-track {
+  height: 5px;
+  margin-top: 9px;
+  background: #312a23;
+  overflow: hidden;
+}
+.server-meter-track > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #8c5b34, var(--accent-strong));
+}
+.server-xp-caption { margin: -12px 0 0; color: var(--muted); font-size: .82rem; }
+.server-expedition,
+.server-contracts,
+.server-donation,
+.server-inventory {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 20px;
+}
+.server-expedition header > span { color: var(--accent-strong); }
+.server-combat-flags { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.server-combat-flags span,
+.server-inventory span {
+  border: 1px solid var(--border);
+  background: rgba(197, 155, 95, .07);
+  padding: 7px 9px;
+}
+.server-combat-log {
+  min-height: 74px;
+  margin: 14px 0;
+  border-left: 2px solid var(--border);
+  padding-left: 14px;
+  color: #d3c7b5;
+}
+.server-combat-log p { margin: 6px 0; }
+.server-combat-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.server-contract-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.server-contract-grid article {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border);
+  background: rgba(15, 13, 11, .62);
+  padding: 15px;
+}
+.server-contract-grid article > div { display: flex; justify-content: space-between; gap: 10px; }
+.server-contract-grid article span,
+.server-contract-grid article small,
+.server-contract-grid article p { color: var(--muted); }
+.server-contract-grid article p { flex: 1; line-height: 1.5; }
+.server-donation { align-items: center; }
+.server-donation > div { max-width: 640px; }
+.server-donation p:last-child { color: var(--muted); line-height: 1.55; }
+.server-donation form { display: flex; gap: 8px; }
+.server-donation input { width: 110px; }
+.server-inventory > div { display: flex; flex-wrap: wrap; gap: 8px; }
+@keyframes server-pulse {
+  0%, 100% { box-shadow: 0 14px 44px rgba(0, 0, 0, .4); }
+  50% { box-shadow: 0 0 0 7px rgba(197, 155, 95, .12), 0 14px 44px rgba(0, 0, 0, .4); }
+}
+@media (max-width: 760px) {
+  .server-journey-toggle { right: 10px; bottom: 70px; }
+  .server-journey-backdrop { padding: 0; align-items: stretch; }
+  .server-journey-panel { max-height: 100vh; border: 0; padding: 18px 14px 90px; }
+  .server-journey-header,
+  .server-character-title,
+  .server-section-title,
+  .server-donation { display: grid; }
+  .server-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .server-contract-grid { grid-template-columns: 1fr; }
+  .server-combat-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .server-donation form { width: 100%; }
+  .server-donation input { flex: 1; width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .server-journey-toggle.active-run { animation: none; }
+}

@@ -4,6 +4,8 @@ import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
 import { createApiHandler, sessionTokenFromRequest } from './api.mjs'
+import { createPlayerApiHandler } from './player-api.mjs'
+import { PlayerStore } from './player-store.mjs'
 import { canReceive, createChatMessage, parsePacket, visibleHistory } from './protocol.mjs'
 import { GameStore } from './store.mjs'
 
@@ -16,6 +18,8 @@ const databaseFile = process.env.DATABASE_PATH || join(dataDirectory, 'game.db')
 const messages = []
 const sessions = new WeakMap()
 const store = new GameStore(databaseFile)
+const players = new PlayerStore(store)
+const handlePlayerApi = createPlayerApiHandler(store, players)
 const handleApi = createApiHandler(store)
 let persistQueue = Promise.resolve()
 
@@ -106,6 +110,7 @@ async function serveStatic(request, response) {
 }
 
 const server = createServer(async (request, response) => {
+  if (await handlePlayerApi(request, response)) return
   if (await handleApi(request, response)) return
   await serveStatic(request, response)
 })
