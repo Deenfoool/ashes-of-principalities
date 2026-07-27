@@ -6,8 +6,10 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { createApiHandler, sessionTokenFromRequest } from './api.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
 import { createStoryApiHandler } from './story-api.mjs'
+import { createSurvivalApiHandler } from './survival-api.mjs'
 import { PlayerStore } from './player-store.mjs'
 import { StoryStore } from './story-store.mjs'
+import { SurvivalStore } from './survival-store.mjs'
 import { canReceive, createChatMessage, parsePacket, visibleHistory } from './protocol.mjs'
 import { GameStore } from './store.mjs'
 
@@ -22,6 +24,8 @@ const sessions = new WeakMap()
 const store = new GameStore(databaseFile)
 const players = new PlayerStore(store)
 const stories = new StoryStore(store, players)
+const survival = new SurvivalStore(store, players)
+const handleSurvivalApi = createSurvivalApiHandler(store, survival)
 const handleStoryApi = createStoryApiHandler(store, players, stories)
 const handlePlayerApi = createPlayerApiHandler(store, players, stories)
 const handleApi = createApiHandler(store)
@@ -114,6 +118,7 @@ async function serveStatic(request, response) {
 }
 
 const server = createServer(async (request, response) => {
+  if (await handleSurvivalApi(request, response)) return
   if (await handleStoryApi(request, response)) return
   if (await handlePlayerApi(request, response)) return
   if (await handleApi(request, response)) return
@@ -197,5 +202,5 @@ process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ashes server v0.5 listening on http://0.0.0.0:${port}`)
+  console.log(`Ashes server v0.6 listening on http://0.0.0.0:${port}`)
 })
