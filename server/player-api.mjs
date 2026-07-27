@@ -35,7 +35,19 @@ function requireUser(store, request) {
   return user
 }
 
-export function createPlayerApiHandler(store, players) {
+function requireFreePlay(stories, userId) {
+  if (!stories) return
+  const story = stories.publicStory(userId)
+  if (story && !story.chapterComplete) {
+    throw new StoreError(
+      'chapter-in-progress',
+      'Вольные походы и отдых вне сцены откроются после завершения первой главы.',
+      409,
+    )
+  }
+}
+
+export function createPlayerApiHandler(store, players, stories = null) {
   return async function handlePlayerApi(request, response) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     const isPlayerRoute = url.pathname.startsWith('/api/player/')
@@ -64,6 +76,7 @@ export function createPlayerApiHandler(store, players) {
       }
 
       if (request.method === 'POST' && url.pathname === '/api/player/expeditions') {
+        requireFreePlay(stories, user.id)
         const body = await readJson(request)
         sendJson(response, 201, players.startExpedition(user.id, body))
         return true
@@ -76,6 +89,7 @@ export function createPlayerApiHandler(store, players) {
       }
 
       if (request.method === 'POST' && url.pathname === '/api/player/rest') {
+        requireFreePlay(stories, user.id)
         const body = await readJson(request)
         sendJson(response, 200, players.rest(user.id, body))
         return true

@@ -1,0 +1,77 @@
+.server-story-panel { width: min(1080px, 100%); }
+.server-story-quests,
+.server-story-scene,
+.server-chapter-complete,
+.server-story-history {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 20px;
+}
+.server-section-title > span { color: var(--accent-strong); }
+.server-quest-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.server-quest-strip article {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  padding: 12px;
+  background: rgba(15, 13, 11, .62);
+}
+.server-quest-strip article.active { border-color: var(--accent); }
+.server-quest-strip article.completed { border-color: rgba(126, 169, 113, .45); }
+.server-quest-strip small,
+.server-quest-strip span { color: var(--muted); }
+.server-story-scene > h3,
+.server-chapter-complete > h3,
+.server-story-history > h3 {
+  margin: 0;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  font-size: 2rem;
+  text-transform: uppercase;
+}
+.server-story-text {
+  margin: 22px 0;
+  color: #d5cab8;
+  font-size: 1.06rem;
+  line-height: 1.8;
+}
+.server-story-choices { display: grid; gap: 10px; }
+.server-story-choices button {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: inherit;
+  padding: 15px 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.server-story-choices button:hover:not(:disabled) { border-color: var(--accent); transform: translateX(2px); }
+.server-story-choices button:disabled { opacity: .42; cursor: not-allowed; }
+.server-story-choices small { color: var(--accent); text-align: right; }
+.server-chapter-complete {
+  background: linear-gradient(145deg, rgba(105, 76, 42, .28), rgba(24, 20, 17, .96));
+  border-color: rgba(226, 189, 127, .38);
+}
+.server-chapter-complete p:last-child { color: var(--muted); line-height: 1.65; }
+.server-story-history p {
+  margin: 10px 0 0;
+  padding-left: 13px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+body.server-account-mode .sidebar nav button:nth-child(-n+3),
+body.server-account-mode .mobile-nav button:nth-child(-n+3) { display: none; }
+body.server-account-mode .sidebar-stats { display: none; }
+body.server-account-mode .mobile-nav { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 760px) {
+  .server-quest-strip { grid-template-columns: 1fr; }
+  .server-story-choices button { display: block; }
+  .server-story-choices small { display: block; margin-top: 7px; text-align: left; }
+}
