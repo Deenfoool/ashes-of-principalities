@@ -8,6 +8,7 @@ import './compat-v04.css'
 import './story-v05.css'
 import './unified-v06.css'
 import './crafting-v07.css'
+import './market-v08.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
