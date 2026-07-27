@@ -4,6 +4,7 @@ import AppV3 from './AppV3'
 import UnifiedChat from './UnifiedChat'
 import UnifiedCrafting from './UnifiedCrafting'
 import UnifiedGuild from './UnifiedGuild'
+import UnifiedJourney from './UnifiedJourney'
 import UnifiedMarket from './UnifiedMarket'
 import {
   fetchOnlineSnapshot,
@@ -22,8 +23,11 @@ import {
   PlayerApiError,
   QueuedPlayerAction,
   startServerExpedition,
+  useExpeditionTactic,
 } from './online-player'
-import type { CombatAction, OnlineProfession, ServerContract, ServerRegion } from './online-player'
+import type { ContractRotation, ExpeditionTactic, OnlineProfession } from './online-player'
+import { chooseMarshStory, getMarshStory } from './online-marsh-story'
+import type { MarshStory } from './online-marsh-story'
 import {
   chooseServerStory,
   flushStoryActionQueue,
@@ -37,7 +41,9 @@ import {
 } from './online-survival'
 import type { SurvivalCharacter, SurvivalItem } from './online-survival'
 
-type View = 'journey' | 'character' | 'crafting' | 'market' | 'guild' | 'chat' | 'account'
+ type View = 'journey' | 'character' | 'crafting' | 'market' | 'guild' | 'chat' | 'account'
+
+const EMPTY_ROTATION: ContractRotation = { contracts: [], regions: [], rotationEndsAt: null }
 
 const professionNames: Record<OnlineProfession, string> = {
   blacksmith: 'Кузнец',
@@ -48,31 +54,12 @@ const professionNames: Record<OnlineProfession, string> = {
   wanderer: 'Странник',
 }
 
-const intentNames: Record<string, string> = {
-  attack: 'обычная атака',
-  heavy: 'тяжёлый удар',
-  guard: 'защита',
-  hex: 'проклятие',
-}
-
-const actionLabels: Record<CombatAction, string> = {
-  attack: 'Атаковать',
-  guard: 'Защищаться',
-  prepare: 'Подготовиться',
-  profession: 'Приём ремесла',
-  advance: 'Сблизиться',
-  retreat: 'Отойти',
-  flee: 'Покинуть бой',
-}
-
 const qualityNames: Record<string, string> = {
   worn: 'изношенное',
   common: 'обычное',
   good: 'добротное',
   masterwork: 'мастерское',
 }
-
-const distanceName = (value: number) => value <= 0 ? 'вплотную' : value === 1 ? 'средняя' : value === 2 ? 'дальняя' : 'предельная'
 
 function describeError(error: unknown) {
   if (error instanceof OnlineError || error instanceof PlayerApiError || error instanceof QueuedPlayerAction) return error.message
@@ -99,8 +86,8 @@ function GuestPortal({ onAuthenticated }: { onAuthenticated: () => Promise<void>
     <section className="u-gate-copy">
       <p className="eyebrow">Онлайн PWA RPG-рогалик</p>
       <h1>Пепел Княжеств</h1>
-      <p>Один серверный герой, одна экономика и решения, которые переживают закрытие браузера.</p>
-      <div className="u-gate-facts"><span>2 области</span><span>6 ремёсел</span><span>Позиционный бой</span><span>Смерть и наследники</span></div>
+      <p>Две серверные главы, ремёсла, позиционный бой и решения, которые переживают героя.</p>
+      <div className="u-gate-facts"><span>2 сюжетные главы</span><span>6 ремёсел</span><span>Рынок игроков</span><span>Смерть и наследники</span></div>
       <button className="u-secondary" onClick={() => setDemo(true)} type="button">Открыть гостевое демо</button>
     </section>
     <section className="u-auth-card">
@@ -129,101 +116,6 @@ function GuestPortal({ onAuthenticated }: { onAuthenticated: () => Promise<void>
   </main>
 }
 
-function CharacterCreation({ busy, heir, onCreate }: {
-  busy: boolean
-  heir: boolean
-  onCreate: (name: string, profession: OnlineProfession) => void
-}) {
-  const [name, setName] = useState('')
-  const [profession, setProfession] = useState<OnlineProfession>('hunter')
-  return <form className="u-panel u-create" onSubmit={(event) => { event.preventDefault(); onCreate(name, profession) }}>
-    <p className="eyebrow">{heir ? 'Род не заканчивается одной смертью' : 'Первое имя в летописи'}</p>
-    <h2>{heir ? 'Создать наследника' : 'Создать героя'}</h2>
-    <label>Имя<input maxLength={24} minLength={2} onChange={(event) => setName(event.target.value)} required value={name} /></label>
-    <label>Ремесло<select onChange={(event) => setProfession(event.target.value as OnlineProfession)} value={profession}>{(Object.keys(professionNames) as OnlineProfession[]).map((id) => <option key={id} value={id}>{professionNames[id]}</option>)}</select></label>
-    <button disabled={busy || name.trim().length < 2} type="submit">{heir ? 'Продолжить род' : 'Выйти на дорогу'}</button>
-  </form>
-}
-
-function RegionBoard({ regions, contracts, rotationEndsAt, character, busy, onStart }: {
-  regions: ServerRegion[]
-  contracts: ServerContract[]
-  rotationEndsAt: number | null
-  character: SurvivalCharacter
-  busy: boolean
-  onStart: (contractId: string) => void
-}) {
-  return <div className="u-stack">
-    <section className="u-panel">
-      <header className="u-section-head"><div><p className="eyebrow">Карта северного рубежа</p><h2>Доступные области</h2></div>{rotationEndsAt && <span>Новая ротация: {new Date(rotationEndsAt).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</span>}</header>
-      <div className="u-region-grid">{regions.map((region) => <article className={region.unlocked ? 'unlocked' : 'locked'} key={region.id}>
-        <div><strong>{region.name}</strong><span>{region.unlocked ? `Побед в области: ${region.victories}` : 'Закрыто'}</span></div>
-        <p>{region.description}</p>
-        <small>{region.unlocked ? region.unlock : region.requirement}</small>
-      </article>)}</div>
-    </section>
-    {regions.filter((region) => region.unlocked).map((region) => {
-      const regional = contracts.filter((contract) => contract.regionId === region.id)
-      return <section className="u-panel" key={region.id}>
-        <p className="eyebrow">Авторские модули собраны сервером</p><h2>{region.name}</h2>
-        {regional.length === 0 ? <p className="u-empty">Предложения этой ротации закончились.</p> : <div className="u-contract-grid">{regional.map((contract) => <article key={contract.id}>
-          <div><strong>{contract.title}</strong><span>Опасность {contract.difficulty}</span></div>
-          <p>{contract.description}</p>
-          <div className="u-contract-facts"><span>{contract.terrainName}</span><span>Старт: {distanceName(contract.initialDistance ?? 1)}</span><span>Предел: {distanceName(contract.maxDistance ?? 2)}</span></div>
-          <small>{contract.rewardCoins} монет · {contract.rewardExperience} опыта</small>
-          <button disabled={busy || character.stamina < 2} onClick={() => onStart(contract.id)} type="button">Взять контракт</button>
-        </article>)}</div>}
-      </section>
-    })}
-  </div>
-}
-
-function JourneyView({ character, story, contracts, regions, rotationEndsAt, busy, onChoice, onCombat, onStart, onCreate, onHeir }: {
-  character: SurvivalCharacter | null
-  story: ServerStory | null
-  contracts: ServerContract[]
-  regions: ServerRegion[]
-  rotationEndsAt: number | null
-  busy: boolean
-  onChoice: (choiceId: string) => void
-  onCombat: (action: CombatAction) => void
-  onStart: (contractId: string) => void
-  onCreate: (name: string, profession: OnlineProfession) => void
-  onHeir: (name: string, profession: OnlineProfession) => void
-}) {
-  if (!character) return <CharacterCreation busy={busy} heir={false} onCreate={onCreate} />
-  if (!character.alive) return <CharacterCreation busy={busy} heir onCreate={onHeir} />
-  const active = character.activeExpedition
-  if (active) {
-    const actions = (Object.keys(actionLabels) as CombatAction[]).filter((action) => active.positional || !['advance', 'retreat'].includes(action))
-    return <section className="u-panel u-combat">
-      <header className="u-section-head"><div><p className="eyebrow">Ход {active.turn}{story?.pendingEncounter ? ' · сюжет' : active.regionName ? ` · ${active.regionName}` : ''}</p><h2>{active.enemyName}</h2></div><span>Намерение: {intentNames[active.enemyIntent] ?? active.enemyIntent}</span></header>
-      {active.positional && <div className="u-position-panel"><div><span>Местность</span><strong>{active.terrainName}</strong></div><div><span>Дистанция</span><strong>{distanceName(active.distance ?? 1)}</strong></div><div className="u-distance-track">{Array.from({ length: (active.maxDistance ?? 2) + 1 }, (_, index) => <span className={index === active.distance ? 'active' : ''} key={index}>{index === 0 ? 'Ближняя' : index === 1 ? 'Средняя' : index === 2 ? 'Дальняя' : 'Край'}</span>)}</div></div>}
-      <Meter label="Враг" value={active.enemyHealth} max={active.enemyMaxHealth} />
-      <div className="u-combat-flags">{active.guard > 0 && <span>Защита {active.guard}</span>}{active.prepared && <span>Удар подготовлен</span>}{active.complication && <span>{active.complication}</span>}{character.equippedItem?.broken && <span className="danger">Инструмент сломан</span>}{character.injuries.map((injury) => <span className="danger" key={injury.id}>{injury.title}</span>)}</div>
-      <div className="u-combat-log">{active.lastLog.map((entry, index) => <p key={`${entry}-${index}`}>{entry}</p>)}</div>
-      <div className="u-action-grid">{actions.map((action) => {
-        const movementBlocked = action === 'advance' && (active.distance ?? 0) <= 0 || action === 'retreat' && (active.distance ?? 0) >= (active.maxDistance ?? 0)
-        return <button disabled={busy || movementBlocked || (action === 'profession' && Boolean(character.equippedItem?.broken))} key={action} onClick={() => onCombat(action)} type="button">{actionLabels[action]}</button>
-      })}</div>
-    </section>
-  }
-  if (!story) return <section className="u-panel"><h2>Летопись ещё не создана</h2><p>Обнови страницу или повтори подключение.</p></section>
-  const complete = story.quests.filter((quest) => quest.status === 'completed').length
-  return <div className="u-stack">
-    <section className="u-panel">
-      <header className="u-section-head"><div><p className="eyebrow">{story.scene.region}</p><h2>{story.scene.title}</h2></div><span>{complete}/3 контрактов · {story.decisionCount} решений</span></header>
-      <p className="u-story-text">{story.scene.text}</p>
-      <div className="u-choice-list">{story.scene.choices.map((choice) => <button disabled={busy || !choice.available} key={choice.id} onClick={() => onChoice(choice.id)} type="button"><span>{choice.label}</span>{choice.requirement && <small>{choice.requirement}</small>}</button>)}</div>
-    </section>
-    <section className="u-panel">
-      <p className="eyebrow">След решений</p><h2>Контракты главы</h2>
-      <div className="u-quest-grid">{story.quests.map((quest) => <article className={quest.status} key={quest.id}><strong>{quest.title}</strong><p>{quest.summary}</p><small>{quest.status === 'completed' ? `Итог: ${quest.outcome}` : quest.status === 'active' ? 'Активен' : 'Доступен'}</small></article>)}</div>
-    </section>
-    {story.chapterComplete && <RegionBoard busy={busy} character={character} contracts={contracts} onStart={onStart} regions={regions} rotationEndsAt={rotationEndsAt} />}
-  </div>
-}
-
 function ItemCard({ item, busy, onRepair, onEquip }: {
   item: SurvivalItem
   busy: boolean
@@ -235,13 +127,23 @@ function ItemCard({ item, busy, onRepair, onEquip }: {
     {item.maxDurability > 0 ? <>
       <Meter label="Прочность" value={item.durability} max={item.maxDurability} />
       <div className="u-item-actions"><button disabled={busy || item.equipped} onClick={onEquip} type="button">{item.equipped ? 'Экипировано' : 'Экипировать'}</button><button disabled={busy || item.durability >= item.maxDurability} onClick={onRepair} type="button">Ремонт</button></div>
-    </> : <small>{item.type === 'quest' ? 'Сюжетный предмет' : item.type === 'relic' ? 'Реликвия рода' : item.type === 'consumable' ? 'Ремесленная заготовка' : 'Материал или трофей'}</small>}
+    </> : <small>{item.type === 'quest' ? 'Сюжетный предмет' : item.type === 'relic' ? 'Реликвия рода' : item.type === 'consumable' ? 'Расходник или ремесленная заготовка' : 'Материал или трофей'}</small>}
   </article>
 }
 
-function CharacterView({ character, story, busy, onRepair, onEquip, onTreat }: {
+function injuryEffect(kind: string, severity: number) {
+  if (kind === 'wounded-arm') return `Атаки требуют ещё ${severity} силы.`
+  if (kind === 'sprained-ankle') return `Отступление требует ещё ${severity} силы.`
+  if (kind === 'marsh-fever') return `Движение в бою требует ещё ${severity} силы.`
+  if (kind === 'deep-cut') return `Атаки и ремесленные приёмы требуют ещё ${severity} силы.`
+  if (kind === 'salt-burn') return `Полевые тактики требуют ещё ${severity} силы.`
+  return 'Травма влияет на выносливость героя.'
+}
+
+function CharacterView({ character, story, marshStory, busy, onRepair, onEquip, onTreat }: {
   character: SurvivalCharacter
   story: ServerStory | null
+  marshStory: MarshStory | null
   busy: boolean
   onRepair: (id: string) => void
   onEquip: (id: string) => void
@@ -253,14 +155,12 @@ function CharacterView({ character, story, busy, onRepair, onEquip, onTreat }: {
       <div className="u-stat-grid"><Meter label="Здоровье" value={character.health} max={character.maxHealth} /><Meter label="Силы" value={character.stamina} max={character.maxStamina} /><Meter label="Опыт" value={character.experience} max={character.experienceToNext} /><article><span>Монеты</span><strong>{character.coins}</strong></article><article><span>Чутьё</span><strong>{character.insight}</strong></article><article><span>Репутация</span><strong>{character.reputation}</strong></article><article><span>Слава рода</span><strong>{character.legacyGlory}</strong></article><article><span>Погибших</span><strong>{character.deaths}</strong></article></div>
     </section>
     <section className="u-panel">
-      <p className="eyebrow">Последствия не исчезают после боя</p><h2>Травмы</h2>
-      {character.injuries.length === 0 ? <p className="u-empty">Активных травм нет.</p> : <div className="u-injury-list">{character.injuries.map((injury) => <article key={injury.id}><div><strong>{injury.title}</strong><span>Тяжесть {injury.severity} · {injury.source}</span><small>{injury.kind === 'wounded-arm' ? `Боевые удары требуют ещё ${injury.severity} силы.` : `Отступление требует ещё ${injury.severity} силы.`}</small></div><button disabled={busy || Boolean(character.activeExpedition)} onClick={() => onTreat(injury.id)} type="button">Лечить</button></article>)}</div>}
+      <p className="eyebrow">Покой теперь имеет значение</p><h2>Травмы и естественное заживление</h2>
+      {character.injuries.length === 0 ? <p className="u-empty">Активных травм нет.</p> : <div className="u-injury-list">{character.injuries.map((injury) => <article key={injury.id}><div><strong>{injury.title}</strong><span>Тяжесть {injury.severity} · {injury.source}</span><small>{injuryEffect(injury.kind, injury.severity)}</small>{injury.naturalHealAt && <small>Следующее естественное улучшение: {new Date(injury.naturalHealAt).toLocaleString('ru-RU')}</small>}{injury.recoveryNote && <small>{injury.recoveryNote}</small>}</div><button disabled={busy || Boolean(character.activeExpedition)} onClick={() => onTreat(injury.id)} type="button">Лечить</button></article>)}</div>}
     </section>
-    <section className="u-panel">
-      <p className="eyebrow">Качество определяет цену содержания</p><h2>Снаряжение и трофеи</h2>
-      <div className="u-item-grid">{character.inventory.map((item) => <ItemCard busy={busy} item={item} key={item.id} onEquip={() => onEquip(item.id)} onRepair={() => onRepair(item.id)} />)}</div>
-    </section>
-    {story && <section className="u-panel"><p className="eyebrow">Последние записи</p><h2>Летопись</h2><div className="u-history">{story.history.slice(0, 12).map((entry, index) => <p key={`${entry}-${index}`}>{entry}</p>)}</div></section>}
+    <section className="u-panel"><p className="eyebrow">Качество определяет цену содержания</p><h2>Снаряжение и трофеи</h2><div className="u-item-grid">{character.inventory.map((item) => <ItemCard busy={busy} item={item} key={item.id} onEquip={() => onEquip(item.id)} onRepair={() => onRepair(item.id)} />)}</div></section>
+    {story && <section className="u-panel"><p className="eyebrow">Первая летопись</p><h2>Последние записи Верескова</h2><div className="u-history">{story.history.slice(0, 8).map((entry, index) => <p key={`${entry}-${index}`}>{entry}</p>)}</div></section>}
+    {marshStory?.history && marshStory.history.length > 0 && <section className="u-panel"><p className="eyebrow">Вторая летопись</p><h2>Записи Соляных топей</h2><div className="u-history">{marshStory.history.slice(0, 8).map((entry, index) => <p key={`${entry}-${index}`}>{entry}</p>)}</div></section>}
   </div>
 }
 
@@ -268,9 +168,8 @@ export default function App() {
   const [account, setAccount] = useState<OnlineSnapshot | null>(null)
   const [character, setCharacter] = useState<SurvivalCharacter | null>(null)
   const [story, setStory] = useState<ServerStory | null>(null)
-  const [contracts, setContracts] = useState<ServerContract[]>([])
-  const [regions, setRegions] = useState<ServerRegion[]>([])
-  const [rotationEndsAt, setRotationEndsAt] = useState<number | null>(null)
+  const [marshStory, setMarshStory] = useState<MarshStory | null>(null)
+  const [rotation, setRotation] = useState<ContractRotation>(EMPTY_ROTATION)
   const [view, setView] = useState<View>('journey')
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -279,16 +178,19 @@ export default function App() {
   const refreshAll = useCallback(async () => {
     try {
       const nextAccount = await fetchOnlineSnapshot()
-      const [game, available] = await Promise.all([getServerStory(), getServerContracts()])
+      const [game, available, marsh] = await Promise.all([getServerStory(), getServerContracts(), getMarshStory()])
       setAccount(nextAccount)
       setCharacter(game.character as SurvivalCharacter | null)
       setStory(game.story)
-      setContracts(available.contracts)
-      setRegions(available.regions)
-      setRotationEndsAt(available.rotationEndsAt)
+      setRotation(available)
+      setMarshStory(marsh.marshStory)
     } catch (error) {
       if ((error instanceof OnlineError || error instanceof PlayerApiError) && error.status === 401) {
-        setAccount(null); setCharacter(null); setStory(null); setContracts([]); setRegions([]); setRotationEndsAt(null)
+        setAccount(null)
+        setCharacter(null)
+        setStory(null)
+        setMarshStory(null)
+        setRotation(EMPTY_ROTATION)
       } else setNotice(describeError(error))
     } finally { setReady(true) }
   }, [])
@@ -297,7 +199,10 @@ export default function App() {
   useEffect(() => {
     const sync = async () => {
       const completed = (await flushPlayerActionQueue()) + (await flushStoryActionQueue())
-      if (completed > 0) { setNotice(`Синхронизировано действий: ${completed}.`); await refreshAll() }
+      if (completed > 0) {
+        setNotice(`Синхронизировано действий: ${completed}.`)
+        await refreshAll()
+      }
     }
     window.addEventListener('online', sync)
     void sync()
@@ -305,22 +210,19 @@ export default function App() {
   }, [refreshAll])
 
   const applyGame = async (operation: () => Promise<{ character: unknown }>) => {
-    setBusy(true); setNotice('')
+    setBusy(true)
+    setNotice('')
     try {
       const result = await operation()
       setCharacter(result.character as SurvivalCharacter)
-      const [next, available] = await Promise.all([getServerStory(), getServerContracts()])
-      setCharacter(next.character as SurvivalCharacter | null)
-      setStory(next.story)
-      setContracts(available.contracts)
-      setRegions(available.regions)
-      setRotationEndsAt(available.rotationEndsAt)
+      await refreshAll()
     } catch (error) { setNotice(describeError(error)) }
     finally { setBusy(false) }
   }
 
-  const choose = async (choiceId: string) => {
-    setBusy(true); setNotice('')
+  const chooseFirstChapter = async (choiceId: string) => {
+    setBusy(true)
+    setNotice('')
     try {
       const result = await chooseServerStory(choiceId)
       setCharacter(result.character as SurvivalCharacter | null)
@@ -330,15 +232,27 @@ export default function App() {
     finally { setBusy(false) }
   }
 
+  const chooseSecondChapter = async (choiceId: string) => {
+    setBusy(true)
+    setNotice('')
+    try {
+      const result = await chooseMarshStory(choiceId)
+      setCharacter(result.character)
+      setMarshStory(result.marshStory)
+      await refreshAll()
+    } catch (error) { setNotice(describeError(error)) }
+    finally { setBusy(false) }
+  }
+
   const title = useMemo(() => {
-    if (view === 'journey') return character?.activeExpedition?.regionName ?? story?.scene.region ?? 'Северный рубеж'
+    if (view === 'journey') return character?.activeExpedition?.regionName ?? (marshStory?.started ? marshStory.scene?.region : story?.scene.region) ?? 'Северный рубеж'
     if (view === 'character') return character?.name ?? 'Герой'
     if (view === 'crafting') return 'Мастерская'
     if (view === 'market') return 'Торговая площадь'
     if (view === 'guild') return account?.guild?.name ?? 'Гильдия'
     if (view === 'chat') return 'Общий костёр'
     return 'Аккаунт'
-  }, [view, story, character, account])
+  }, [view, story, marshStory, character, account])
 
   if (!ready) return <main className="u-loading"><h1>Пепел Княжеств</h1><p>Поднимаем серверную летопись…</p></main>
   if (!account) return <GuestPortal onAuthenticated={refreshAll} />
@@ -360,13 +274,28 @@ export default function App() {
     </aside>
     <main className="u-main">
       {notice && <p className="u-notice">{notice}</p>}
-      {view === 'journey' && <JourneyView busy={busy} character={character} contracts={contracts} regions={regions} rotationEndsAt={rotationEndsAt} onChoice={(id) => void choose(id)} onCombat={(action) => { const run = character?.activeExpedition; if (run) void applyGame(() => actInServerExpedition(run.id, action)) }} onCreate={(name, profession) => void applyGame(() => createServerCharacter(name, profession))} onHeir={(name, profession) => void applyGame(() => createServerHeir(name, profession))} onStart={(id) => void applyGame(() => startServerExpedition(id))} story={story} />}
-      {view === 'character' && (character ? <CharacterView busy={busy} character={character} onEquip={(id) => void applyGame(() => equipServerItem(id))} onRepair={(id) => void applyGame(() => repairServerItem(id))} onTreat={(id) => void applyGame(() => treatServerInjury(id))} story={story} /> : <CharacterCreation busy={busy} heir={false} onCreate={(name, profession) => void applyGame(() => createServerCharacter(name, profession))} />)}
+      {view === 'journey' && <UnifiedJourney
+        busy={busy}
+        character={character}
+        marshStory={marshStory}
+        onChoice={(id) => void chooseFirstChapter(id)}
+        onCombat={(action) => { const run = character?.activeExpedition; if (run) void applyGame(() => actInServerExpedition(run.id, action)) }}
+        onCreate={(name, profession) => void applyGame(() => createServerCharacter(name, profession))}
+        onHeir={(name, profession) => void applyGame(() => createServerHeir(name, profession))}
+        onMarshChoice={(id) => void chooseSecondChapter(id)}
+        onStart={(id) => void applyGame(() => startServerExpedition(id))}
+        onTactic={(tactic: ExpeditionTactic) => { const run = character?.activeExpedition; if (run) void applyGame(() => useExpeditionTactic(run.id, tactic)) }}
+        rotation={rotation}
+        story={story}
+      />}
+      {view === 'character' && (character
+        ? <CharacterView busy={busy} character={character} marshStory={marshStory} onEquip={(id) => void applyGame(() => equipServerItem(id))} onRepair={(id) => void applyGame(() => repairServerItem(id))} onTreat={(id) => void applyGame(() => treatServerInjury(id))} story={story} />
+        : <section className="u-panel"><h2>Герой ещё не создан</h2><p>Перейди в раздел «Путь» и впиши первое имя рода.</p></section>)}
       {view === 'crafting' && <UnifiedCrafting character={character} onCharacter={setCharacter} />}
       {view === 'market' && <UnifiedMarket character={character} onCharacter={setCharacter} />}
       {view === 'guild' && <UnifiedGuild character={character} onCharacter={setCharacter} onRefresh={refreshAll} snapshot={account} />}
       {view === 'chat' && <UnifiedChat author={account.user.displayName} guildId={account.guild?.id ?? null} />}
-      {view === 'account' && <section className="u-panel"><p className="eyebrow">Серверная личность</p><h2>{account.user.displayName}</h2><p>@{account.user.username}</p><div className="u-account-facts"><span>Создан: {new Date(account.user.createdAt).toLocaleDateString('ru-RU')}</span><span>{account.guild ? `Гильдия: [${account.guild.tag}] ${account.guild.name}` : 'Гильдии нет'}</span><span>{character ? `Поколение героя: ${character.generation}` : 'Герой ещё не создан'}</span></div><button className="u-danger-button" onClick={() => void logoutOnline().then(() => { setAccount(null); setCharacter(null); setStory(null); setContracts([]); setRegions([]); setView('journey') })} type="button">Выйти из аккаунта</button></section>}
+      {view === 'account' && <section className="u-panel"><p className="eyebrow">Серверная личность</p><h2>{account.user.displayName}</h2><p>@{account.user.username}</p><div className="u-account-facts"><span>Создан: {new Date(account.user.createdAt).toLocaleDateString('ru-RU')}</span><span>{account.guild ? `Гильдия: [${account.guild.tag}] ${account.guild.name}` : 'Гильдии нет'}</span><span>{character ? `Поколение героя: ${character.generation}` : 'Герой ещё не создан'}</span><span>{marshStory?.chapterComplete ? `Итог топей: ${marshStory.ending}` : 'Вторая глава не завершена'}</span></div><button className="u-danger-button" onClick={() => void logoutOnline().then(() => { setAccount(null); setCharacter(null); setStory(null); setMarshStory(null); setRotation(EMPTY_ROTATION); setView('journey') })} type="button">Выйти из аккаунта</button></section>}
     </main>
     <footer className="u-mobile-nav">{nav.map(([id, label]) => <button className={view === id ? 'active' : ''} key={id} onClick={() => setView(id)} type="button">{label}</button>)}</footer>
   </div>
