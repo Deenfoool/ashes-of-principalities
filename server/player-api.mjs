@@ -60,6 +60,7 @@ export function createPlayerApiHandler(store, players, stories = null, regions =
       const user = requireUser(store, request)
 
       if (request.method === 'GET' && url.pathname === '/api/player/contracts') {
+        if (stories) stories.publicStory(user.id)
         sendJson(response, 200, regions ? regions.snapshot(user.id) : { contracts: expeditionContracts, regions: [], rotationEndsAt: null })
         return true
       }
