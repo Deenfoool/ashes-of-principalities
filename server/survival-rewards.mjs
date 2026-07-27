@@ -15,6 +15,26 @@ export function installSurvivalRewards(db) {
       PRIMARY KEY(user_id, slot)
     ) STRICT;
 
+    DROP TRIGGER IF EXISTS trg_survival_founder_seal;
+
+    CREATE TRIGGER IF NOT EXISTS trg_survival_founder_seal
+    AFTER UPDATE OF status ON player_story_quests
+    WHEN OLD.status = 'active' AND NEW.status = 'completed'
+      AND NOT EXISTS (
+        SELECT 1 FROM player_reward_claims
+        WHERE user_id = NEW.user_id AND reward_id = 'founder-seal-granted'
+      )
+    BEGIN
+      INSERT OR IGNORE INTO player_inventory(
+        user_id, item_id, item_name, quantity, item_type, quality,
+        durability, max_durability, equipped, repair_count
+      ) VALUES (
+        NEW.user_id, 'founder-seal', 'Печать основателя', 1, 'quest', 'good', 0, 0, 0, 0
+      );
+      INSERT OR IGNORE INTO player_reward_claims(user_id, reward_id, claimed_at)
+      VALUES (NEW.user_id, 'founder-seal-granted', unixepoch('subsec') * 1000);
+    END;
+
     CREATE TRIGGER IF NOT EXISTS trg_survival_founder_seal_consumed
     AFTER INSERT ON guilds
     BEGIN
@@ -48,6 +68,14 @@ export function installSurvivalRewards(db) {
       );
     END;
   `)
+
+  db.prepare(`
+    INSERT OR IGNORE INTO player_reward_claims(user_id, reward_id, claimed_at)
+    SELECT DISTINCT user_id, 'founder-seal-granted', MIN(completed_at)
+    FROM player_story_quests
+    WHERE status = 'completed'
+    GROUP BY user_id
+  `).run()
 
   db.prepare(`
     INSERT OR IGNORE INTO player_reward_claims(user_id, reward_id, claimed_at)
