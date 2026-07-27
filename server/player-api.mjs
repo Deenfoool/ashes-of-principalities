@@ -79,6 +79,9 @@ export function createPlayerApiHandler(store, players, stories = null, regions =
       if (request.method === 'POST' && url.pathname === '/api/player/expeditions') {
         requireFreePlay(stories, user.id)
         const body = await readJson(request)
+        if (regions && !regions.offer(user.id, String(body.contractId ?? ''))) {
+          throw new StoreError('contract-not-found', 'Выбери действующее предложение с карты регионов.', 404)
+        }
         sendJson(response, 201, players.startExpedition(user.id, body))
         return true
       }
