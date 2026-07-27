@@ -48,7 +48,7 @@ test('chapter completion awards one good durable tool that stays equipped after 
   }
 })
 
-test('a founder seal consumed by guild creation is not restored by migration', () => {
+test('a consumed founder seal is not restored by migration or a later quest', () => {
   const context = setup('reward_seal')
   try {
     const now = Date.now()
@@ -68,6 +68,16 @@ test('a founder seal consumed by guild creation is not restored by migration', (
     assert.equal(context.players.getCharacter(context.userId).inventory.some((item) => item.id === 'founder-seal'), false)
 
     context.game.db.prepare(`
+      INSERT INTO player_story_quests(user_id, quest_id, status, outcome, contract_counted, started_at)
+      VALUES (?, 'well', 'active', NULL, 0, ?)
+    `).run(context.userId, now + 1)
+    context.game.db.prepare(`
+      UPDATE player_story_quests SET status = 'completed', outcome = 'broken-pact', completed_at = ?
+      WHERE user_id = ? AND quest_id = 'well'
+    `).run(now + 1, context.userId)
+    assert.equal(context.players.getCharacter(context.userId).inventory.some((item) => item.id === 'founder-seal'), false)
+
+    context.game.db.prepare(`
       INSERT OR IGNORE INTO player_inventory(
         user_id, item_id, item_name, quantity, item_type, quality,
         durability, max_durability, equipped, repair_count
@@ -76,6 +86,10 @@ test('a founder seal consumed by guild creation is not restored by migration', (
     installSurvivalRewards(context.game.db)
 
     assert.equal(context.players.getCharacter(context.userId).inventory.some((item) => item.id === 'founder-seal'), false)
+    assert.equal(
+      context.game.db.prepare("SELECT COUNT(*) AS count FROM player_reward_claims WHERE user_id = ? AND reward_id = 'founder-seal-granted'").get(context.userId).count,
+      1,
+    )
     assert.equal(
       context.game.db.prepare("SELECT COUNT(*) AS count FROM player_reward_claims WHERE user_id = ? AND reward_id = 'founder-seal-consumed'").get(context.userId).count,
       1,
