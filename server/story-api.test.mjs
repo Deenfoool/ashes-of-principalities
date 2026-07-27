@@ -13,7 +13,7 @@ async function startApi() {
   const players = new PlayerStore(game)
   const stories = new StoryStore(game, players)
   const accountApi = createApiHandler(game)
-  const playerApi = createPlayerApiHandler(game, players)
+  const playerApi = createPlayerApiHandler(game, players, stories)
   const storyApi = createStoryApiHandler(game, players, stories)
   const server = createServer(async (request, response) => {
     if (await storyApi(request, response)) return
@@ -90,6 +90,35 @@ test('story choice endpoint returns one combined character and story snapshot', 
     assert.equal(choice.status, 200)
     assert.equal(choice.data.story.scene.id, 'cart')
     assert.equal(choice.data.character.coins, 5)
+  } finally {
+    await api.close()
+  }
+})
+
+test('free contracts and out-of-scene rest stay locked until the chapter ends', async () => {
+  const api = await startApi()
+  try {
+    const account = await request(api.base, '/api/auth/register', {
+      method: 'POST',
+      body: { username: 'story_gate', password: '12345678', displayName: 'Закрытый путь' },
+    })
+    await request(api.base, '/api/player', {
+      method: 'POST', cookie: account.cookie,
+      body: { requestId: 'gate-create-0001', name: 'Всеволод', profession: 'carter' },
+    })
+    const expedition = await request(api.base, '/api/player/expeditions', {
+      method: 'POST', cookie: account.cookie,
+      body: { requestId: 'gate-expedition-0001', contractId: 'ash-wolf' },
+    })
+    assert.equal(expedition.status, 409)
+    assert.equal(expedition.data.error.code, 'chapter-in-progress')
+
+    const rest = await request(api.base, '/api/player/rest', {
+      method: 'POST', cookie: account.cookie,
+      body: { requestId: 'gate-rest-0001' },
+    })
+    assert.equal(rest.status, 409)
+    assert.equal(rest.data.error.code, 'chapter-in-progress')
   } finally {
     await api.close()
   }
