@@ -78,7 +78,11 @@ test('story combat resolves into the verdict without double-counting the contrac
     choose(context.stories, context.userId, 'beast-contract', 'combat-0003')
     choose(context.stories, context.userId, 'beast-ask', 'combat-0004')
     const started = choose(context.stories, context.userId, 'beast-fight', 'combat-0005')
-    let character = started.character
+    context.game.db.prepare(`
+      UPDATE player_characters SET max_health = 100, health = 100, max_stamina = 100, stamina = 100
+      WHERE user_id = ?
+    `).run(context.userId)
+    let character = context.players.getCharacter(context.userId)
     let turn = 0
     while (character.activeExpedition && turn < 10) {
       character = context.players.actExpedition(context.userId, {
@@ -88,6 +92,7 @@ test('story combat resolves into the verdict without double-counting the contrac
       }).character
       turn += 1
     }
+    assert.ok(started.character.activeExpedition)
     assert.equal(character.alive, true)
     assert.equal(character.activeExpedition, null)
     const verdict = context.stories.publicStory(context.userId)
@@ -97,6 +102,28 @@ test('story combat resolves into the verdict without double-counting the contrac
     assert.equal(outcome.character.completedContracts, 1)
   } finally {
     context.game.close()
+  }
+})
+
+test('existing server character receives story tables without losing progress', () => {
+  const game = new GameStore(':memory:')
+  const account = game.register({ username: 'story_migration', password: '12345678', displayName: 'Старый игрок' })
+  const players = new PlayerStore(game)
+  try {
+    players.createCharacter(account.user.id, {
+      requestId: 'migration-create-0001',
+      name: 'Добрыня',
+      profession: 'carter',
+    })
+    game.db.prepare('UPDATE player_characters SET coins = 37, reputation = 6 WHERE user_id = ?').run(account.user.id)
+    const stories = new StoryStore(game, players)
+    const story = stories.publicStory(account.user.id)
+    const character = players.getCharacter(account.user.id)
+    assert.equal(story.scene.id, 'crossroads')
+    assert.equal(character.coins, 37)
+    assert.equal(character.reputation, 6)
+  } finally {
+    game.close()
   }
 })
 
