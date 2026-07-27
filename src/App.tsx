@@ -4,6 +4,7 @@ import AppV3 from './AppV3'
 import UnifiedChat from './UnifiedChat'
 import UnifiedCrafting from './UnifiedCrafting'
 import UnifiedGuild from './UnifiedGuild'
+import UnifiedMarket from './UnifiedMarket'
 import {
   fetchOnlineSnapshot,
   loginOnline,
@@ -36,7 +37,7 @@ import {
 } from './online-survival'
 import type { SurvivalCharacter, SurvivalItem } from './online-survival'
 
-type View = 'journey' | 'character' | 'crafting' | 'guild' | 'chat' | 'account'
+type View = 'journey' | 'character' | 'crafting' | 'market' | 'guild' | 'chat' | 'account'
 
 const professionNames: Record<OnlineProfession, string> = {
   blacksmith: 'Кузнец',
@@ -97,7 +98,7 @@ function GuestPortal({ onAuthenticated }: { onAuthenticated: () => Promise<void>
       <p className="eyebrow">Онлайн PWA RPG-рогалик</p>
       <h1>Пепел Княжеств</h1>
       <p>Один серверный герой, одна экономика и решения, которые переживают закрытие браузера.</p>
-      <div className="u-gate-facts"><span>16 авторских сцен</span><span>6 ремёсел</span><span>Серверные мастерские</span><span>Смерть и наследники</span></div>
+      <div className="u-gate-facts"><span>16 авторских сцен</span><span>6 ремёсел</span><span>Серверный рынок</span><span>Смерть и наследники</span></div>
       <button className="u-secondary" onClick={() => setDemo(true)} type="button">Открыть гостевое демо</button>
     </section>
     <section className="u-auth-card">
@@ -305,6 +306,7 @@ export default function App() {
     if (view === 'journey') return story?.scene.region ?? 'Северный рубеж'
     if (view === 'character') return character?.name ?? 'Герой'
     if (view === 'crafting') return 'Мастерская'
+    if (view === 'market') return 'Торговая площадь'
     if (view === 'guild') return account?.guild?.name ?? 'Гильдия'
     if (view === 'chat') return 'Общий костёр'
     return 'Аккаунт'
@@ -317,6 +319,7 @@ export default function App() {
     ['journey', 'Путь'],
     ['character', 'Герой'],
     ['crafting', 'Мастерская'],
+    ['market', 'Рынок'],
     ['guild', 'Гильдия'],
     ['chat', 'Чаты'],
     ['account', 'Аккаунт'],
@@ -337,6 +340,7 @@ export default function App() {
       {view === 'journey' && <JourneyView busy={busy} character={character} contracts={contracts} onChoice={(id) => void choose(id)} onCombat={(action) => { const run = character?.activeExpedition; if (run) void applyGame(() => actInServerExpedition(run.id, action)) }} onCreate={(name, profession) => void applyGame(() => createServerCharacter(name, profession))} onHeir={(name, profession) => void applyGame(() => createServerHeir(name, profession))} onStart={(id) => void applyGame(() => startServerExpedition(id))} story={story} />}
       {view === 'character' && (character ? <CharacterView busy={busy} character={character} onEquip={(id) => void applyGame(() => equipServerItem(id))} onRepair={(id) => void applyGame(() => repairServerItem(id))} onTreat={(id) => void applyGame(() => treatServerInjury(id))} story={story} /> : <CharacterCreation busy={busy} heir={false} onCreate={(name, profession) => void applyGame(() => createServerCharacter(name, profession))} />)}
       {view === 'crafting' && <UnifiedCrafting character={character} onCharacter={setCharacter} />}
+      {view === 'market' && <UnifiedMarket character={character} onCharacter={setCharacter} />}
       {view === 'guild' && <UnifiedGuild character={character} onCharacter={setCharacter} onRefresh={refreshAll} snapshot={account} />}
       {view === 'chat' && <UnifiedChat author={account.user.displayName} guildId={account.guild?.id ?? null} />}
       {view === 'account' && <section className="u-panel"><p className="eyebrow">Серверная личность</p><h2>{account.user.displayName}</h2><p>@{account.user.username}</p><div className="u-account-facts"><span>Создан: {new Date(account.user.createdAt).toLocaleDateString('ru-RU')}</span><span>{account.guild ? `Гильдия: [${account.guild.tag}] ${account.guild.name}` : 'Гильдии нет'}</span><span>{character ? `Поколение героя: ${character.generation}` : 'Герой ещё не создан'}</span></div><button className="u-danger-button" onClick={() => void logoutOnline().then(() => { setAccount(null); setCharacter(null); setStory(null); setView('journey') })} type="button">Выйти из аккаунта</button></section>}
