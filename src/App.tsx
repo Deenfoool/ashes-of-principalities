@@ -26,7 +26,7 @@ import {
   useExpeditionTactic,
 } from './online-player'
 import type { ContractRotation, ExpeditionTactic, OnlineProfession } from './online-player'
-import { chooseMarshStory, getMarshStory } from './online-marsh-story'
+import { chooseMarshStory, flushMarshStoryActionQueue, getMarshStory } from './online-marsh-story'
 import type { MarshStory } from './online-marsh-story'
 import {
   chooseServerStory,
@@ -41,7 +41,7 @@ import {
 } from './online-survival'
 import type { SurvivalCharacter, SurvivalItem } from './online-survival'
 
- type View = 'journey' | 'character' | 'crafting' | 'market' | 'guild' | 'chat' | 'account'
+type View = 'journey' | 'character' | 'crafting' | 'market' | 'guild' | 'chat' | 'account'
 
 const EMPTY_ROTATION: ContractRotation = { contracts: [], regions: [], rotationEndsAt: null }
 
@@ -198,7 +198,9 @@ export default function App() {
   useEffect(() => { void refreshAll() }, [refreshAll])
   useEffect(() => {
     const sync = async () => {
-      const completed = (await flushPlayerActionQueue()) + (await flushStoryActionQueue())
+      const completed = (await flushPlayerActionQueue())
+        + (await flushStoryActionQueue())
+        + (await flushMarshStoryActionQueue())
       if (completed > 0) {
         setNotice(`Синхронизировано действий: ${completed}.`)
         await refreshAll()
