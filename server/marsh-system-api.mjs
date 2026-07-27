@@ -1,4 +1,5 @@
 import { sessionTokenFromRequest } from './api.mjs'
+import { installMarshSystemFixes } from './marsh-system-fixes.mjs'
 import { StoreError } from './store.mjs'
 
 const MAX_BODY = 32 * 1024
@@ -29,6 +30,7 @@ async function readJson(request) {
 }
 
 export function createMarshSystemApiHandler(store, marshSystem) {
+  installMarshSystemFixes(store.db, marshSystem)
   return async function handleMarshSystemApi(request, response) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     if (url.pathname !== '/api/player/expeditions/tactic') return false
