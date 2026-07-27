@@ -7,6 +7,8 @@ import { createApiHandler, sessionTokenFromRequest } from './api.mjs'
 import { createCraftingApiHandler } from './crafting-api.mjs'
 import { installCraftingMigrations } from './crafting-migrations.mjs'
 import { CraftingStore } from './crafting-store.mjs'
+import { createMarketApiHandler } from './market-api.mjs'
+import { MarketStore } from './market-store.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
 import { createStoryApiHandler } from './story-api.mjs'
 import { createSurvivalApiHandler } from './survival-api.mjs'
@@ -32,6 +34,8 @@ const survival = new SurvivalStore(store, players)
 installSurvivalRewards(store.db)
 const crafting = new CraftingStore(store, players, survival)
 installCraftingMigrations(store.db)
+const market = new MarketStore(store, players)
+const handleMarketApi = createMarketApiHandler(store, market)
 const handleCraftingApi = createCraftingApiHandler(store, crafting)
 const handleSurvivalApi = createSurvivalApiHandler(store, survival)
 const handleStoryApi = createStoryApiHandler(store, players, stories)
@@ -62,7 +66,7 @@ async function loadChatHistory() {
   if (messages.length === 0) {
     messages.push(
       systemMessage('general', 'Серверный костёр разожжён. Путники могут говорить.'),
-      systemMessage('trade', 'Торговый канал открыт. Не подтверждённые системой сделки совершаются на свой риск.'),
+      systemMessage('trade', 'Торговый канал открыт. Системные сделки проводятся через рынок.'),
     )
   }
 }
@@ -126,6 +130,7 @@ async function serveStatic(request, response) {
 }
 
 const server = createServer(async (request, response) => {
+  if (await handleMarketApi(request, response)) return
   if (await handleCraftingApi(request, response)) return
   if (await handleSurvivalApi(request, response)) return
   if (await handleStoryApi(request, response)) return
@@ -211,5 +216,5 @@ process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ashes server v0.7 listening on http://0.0.0.0:${port}`)
+  console.log(`Ashes server v0.8 listening on http://0.0.0.0:${port}`)
 })
