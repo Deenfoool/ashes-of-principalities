@@ -1,6 +1,7 @@
 .m-market-summary { display: grid; gap: 3px; text-align: right; }
 .m-market-summary span, .m-market-summary small { color: var(--u-muted); }
 .m-market-summary strong { font-size: 1.5rem; color: var(--u-accent); }
+.m-market-toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .m-tabs { margin-bottom: 0; flex-wrap: wrap; }
 .m-listing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .m-listing { display: grid; align-content: start; gap: 12px; border: 1px solid var(--u-border); background: rgba(10, 8, 7, .42); padding: 16px; }
@@ -34,6 +35,8 @@
 
 @media (max-width: 720px) {
   .m-market-summary { text-align: left; }
+  .m-market-toolbar { display: grid; align-items: stretch; }
+  .m-market-toolbar > button { width: 100%; }
   .m-listing-grid { grid-template-columns: 1fr; }
   .m-buy-row, .m-sell-form { grid-template-columns: 1fr; }
   .m-buy-row > div { text-align: left; }
