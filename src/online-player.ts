@@ -1,5 +1,5 @@
 export type OnlineProfession = 'blacksmith' | 'herbalist' | 'hunter' | 'scribe' | 'carter' | 'wanderer'
-export type CombatAction = 'attack' | 'guard' | 'prepare' | 'profession' | 'flee'
+export type CombatAction = 'attack' | 'guard' | 'prepare' | 'profession' | 'flee' | 'advance' | 'retreat'
 
 export interface ServerInventoryItem {
   id: string
@@ -22,6 +22,17 @@ export interface ServerExpedition {
   lastLog: string[]
   startedAt: number
   updatedAt: number
+  positional?: boolean
+  regionId?: string
+  regionName?: string
+  offerId?: string
+  distance?: number
+  maxDistance?: number
+  terrainId?: string
+  terrainName?: string
+  complication?: string | null
+  objective?: string | null
+  enemyStyle?: 'melee' | 'ranged' | 'skirmisher'
 }
 
 export interface ServerCharacter {
@@ -58,6 +69,32 @@ export interface ServerContract {
   difficulty: number
   rewardCoins: number
   rewardExperience: number
+  regionId?: string
+  regionName?: string
+  terrainName?: string
+  complication?: string
+  objective?: string
+  initialDistance?: number
+  maxDistance?: number
+  expiresAt?: number
+  procedural?: boolean
+}
+
+export interface ServerRegion {
+  id: string
+  name: string
+  description: string
+  unlock: string
+  unlocked: boolean
+  unlockedAt: number | null
+  victories: number
+  requirement: string | null
+}
+
+export interface ContractRotation {
+  contracts: ServerContract[]
+  regions: ServerRegion[]
+  rotationEndsAt: number | null
 }
 
 interface QueuedOperation {
@@ -68,6 +105,7 @@ interface QueuedOperation {
 }
 
 const QUEUE_KEY = 'ashes-of-principalities:offline-actions:v1'
+const SEQUENTIAL_PATHS = new Set(['/api/player/expeditions', '/api/player/expeditions/action'])
 
 export class PlayerApiError extends Error {
   code: string
@@ -148,6 +186,9 @@ async function post<T>(
   } catch (error) {
     if (error instanceof PlayerApiError || options.queueOnNetworkFailure === false) throw error
     const queue = readQueue()
+    if (SEQUENTIAL_PATHS.has(path) && queue.some((operation) => operation.path === path)) {
+      throw new QueuedPlayerAction()
+    }
     if (!queue.some((operation) => operation.id === requestId)) {
       queue.push({ id: requestId, path, body: payload, createdAt: Date.now() })
       writeQueue(queue)
@@ -181,7 +222,7 @@ export async function flushPlayerActionQueue() {
 }
 
 export const getServerCharacter = () => get<{ character: ServerCharacter | null }>('/api/player')
-export const getServerContracts = () => get<{ contracts: ServerContract[] }>('/api/player/contracts')
+export const getServerContracts = () => get<ContractRotation>('/api/player/contracts')
 
 export const createServerCharacter = (name: string, profession: OnlineProfession) =>
   post<{ character: ServerCharacter }>('/api/player', { name, profession }, { queueOnNetworkFailure: true })

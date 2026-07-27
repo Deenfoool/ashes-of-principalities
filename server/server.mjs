@@ -12,6 +12,8 @@ import { CraftingStore } from './crafting-store.mjs'
 import { createMarketApiHandler } from './market-api.mjs'
 import { MarketStore } from './market-store.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
+import { installRegionFixes } from './region-fixes.mjs'
+import { RegionStore } from './region-store.mjs'
 import { createStoryApiHandler } from './story-api.mjs'
 import { createSurvivalApiHandler } from './survival-api.mjs'
 import { createUniqueItemApiHandler } from './unique-item-api.mjs'
@@ -43,6 +45,8 @@ const market = new MarketStore(store, players)
 const artifacts = new UniqueItemStore(store, players, survival, market)
 installUniqueItemFixes(store.db, artifacts)
 artifacts.patchCrafting(crafting)
+const regions = new RegionStore(store, players)
+installRegionFixes(store.db, regions)
 const commissions = new CommissionStore(store, players, market)
 const handleUniqueItemApi = createUniqueItemApiHandler(store, artifacts)
 const handleCommissionApi = createCommissionApiHandler(store, commissions)
@@ -50,7 +54,7 @@ const handleMarketApi = createMarketApiHandler(store, market)
 const handleCraftingApi = createCraftingApiHandler(store, crafting)
 const handleSurvivalApi = createSurvivalApiHandler(store, survival)
 const handleStoryApi = createStoryApiHandler(store, players, stories)
-const handlePlayerApi = createPlayerApiHandler(store, players, stories)
+const handlePlayerApi = createPlayerApiHandler(store, players, stories, regions)
 const handleApi = createApiHandler(store)
 let persistQueue = Promise.resolve()
 
@@ -229,5 +233,5 @@ process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ashes server v0.10 listening on http://0.0.0.0:${port}`)
+  console.log(`Ashes server v0.11 listening on http://0.0.0.0:${port}`)
 })

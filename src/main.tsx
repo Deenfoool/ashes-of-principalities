@@ -11,6 +11,7 @@ import './crafting-v07.css'
 import './market-v08.css'
 import './trade-v09.css'
 import './artifact-v010.css'
+import './region-v011.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
