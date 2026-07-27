@@ -97,6 +97,12 @@ export class MarketStore {
           created_at INTEGER NOT NULL
         ) STRICT;
 
+        CREATE TABLE IF NOT EXISTS market_accounts (
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          pending_coins INTEGER NOT NULL DEFAULT 0 CHECK(pending_coins >= 0),
+          updated_at INTEGER NOT NULL
+        ) STRICT;
+
         CREATE INDEX IF NOT EXISTS idx_market_active_time
           ON market_listings(status, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_market_seller_time
@@ -105,6 +111,18 @@ export class MarketStore {
           ON market_trades(buyer_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_market_trade_seller_time
           ON market_trades(seller_id, created_at DESC);
+
+        CREATE TRIGGER IF NOT EXISTS trg_market_claim_pending_for_heir
+        AFTER UPDATE OF generation ON player_characters
+        WHEN NEW.generation > OLD.generation
+          AND COALESCE((SELECT pending_coins FROM market_accounts WHERE user_id = NEW.user_id), 0) > 0
+        BEGIN
+          UPDATE player_characters SET coins = coins + (
+            SELECT pending_coins FROM market_accounts WHERE user_id = NEW.user_id
+          ) WHERE user_id = NEW.user_id;
+          UPDATE market_accounts SET pending_coins = 0, updated_at = unixepoch('subsec') * 1000
+          WHERE user_id = NEW.user_id;
+        END;
       `)
     })
   }
@@ -186,10 +204,14 @@ export class MarketStore {
         AND quantity > 0 AND max_durability = 0 AND equipped = 0
       ORDER BY item_type, item_name
     `).all(userId).map((row) => ({ ...row, quantity: Number(row.quantity) }))
+    const pendingCoins = Number(this.db.prepare(`
+      SELECT pending_coins FROM market_accounts WHERE user_id = ?
+    `).get(userId)?.pending_coins ?? 0)
 
     return {
       character: this.players.getCharacter(userId),
       feePercent: MARKET_FEE_PERCENT,
+      pendingCoins,
       safe: !this.safeReason(userId),
       safeReason: this.safeReason(userId),
       listings,
@@ -279,8 +301,17 @@ export class MarketStore {
 
       this.db.prepare('UPDATE player_characters SET coins = coins - ?, updated_at = ? WHERE user_id = ?')
         .run(gross, now, userId)
-      this.db.prepare('UPDATE player_characters SET coins = coins + ?, updated_at = ? WHERE user_id = ?')
-        .run(sellerNet, now, listing.seller_id)
+      const credited = this.db.prepare(`
+        UPDATE player_characters SET coins = coins + ?, updated_at = ? WHERE user_id = ? AND alive = 1
+      `).run(sellerNet, now, listing.seller_id)
+      if (Number(credited.changes) < 1) {
+        this.db.prepare(`
+          INSERT INTO market_accounts(user_id, pending_coins, updated_at) VALUES (?, ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET
+            pending_coins = pending_coins + excluded.pending_coins,
+            updated_at = excluded.updated_at
+        `).run(listing.seller_id, sellerNet, now)
+      }
       this.addStack(userId, {
         id: listing.item_id,
         name: listing.item_name,
