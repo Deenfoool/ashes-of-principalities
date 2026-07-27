@@ -1,0 +1,138 @@
+.marsh-chapter {
+  border-left: 2px solid color-mix(in srgb, var(--accent, #9ebf88) 45%, transparent);
+  padding-left: clamp(.5rem, 1.5vw, 1rem);
+}
+
+.marsh-story-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.marsh-story-panel::after {
+  content: '';
+  position: absolute;
+  inset: auto -10% -45% 35%;
+  height: 14rem;
+  background: radial-gradient(circle, rgba(205, 224, 199, .08), transparent 66%);
+  pointer-events: none;
+}
+
+.marsh-ending {
+  margin-top: 1rem;
+  padding: .75rem 1rem;
+  border: 1px solid rgba(210, 224, 190, .22);
+  background: rgba(204, 226, 187, .06);
+  font-weight: 700;
+}
+
+.marsh-position {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .65rem;
+  margin: .85rem 0;
+}
+
+.marsh-position > div:not(.marsh-distance-track) {
+  display: grid;
+  gap: .2rem;
+  padding: .7rem;
+  border: 1px solid rgba(255, 255, 255, .08);
+  background: rgba(0, 0, 0, .14);
+}
+
+.marsh-position span,
+.marsh-tactics small {
+  color: var(--muted, #9b9b91);
+  font-size: .78rem;
+}
+
+.marsh-distance-track {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: .4rem;
+}
+
+.marsh-distance-track span {
+  min-height: .45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  color: transparent;
+}
+
+.marsh-distance-track span.active {
+  background: var(--accent, #9ebf88);
+  box-shadow: 0 0 1rem rgba(158, 191, 136, .28);
+}
+
+.marsh-tactics {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) repeat(2, minmax(10rem, 1fr));
+  gap: .65rem;
+  align-items: stretch;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+}
+
+.marsh-tactics h3,
+.marsh-tactics p {
+  margin: 0;
+}
+
+.marsh-tactics button {
+  display: grid;
+  gap: .35rem;
+  text-align: left;
+  align-content: center;
+}
+
+.marsh-map-panel {
+  background-image: linear-gradient(135deg, rgba(255,255,255,.018), transparent 58%);
+}
+
+.marsh-region-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: .75rem;
+}
+
+.marsh-region-grid article {
+  display: grid;
+  gap: .55rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, .09);
+  background: rgba(0, 0, 0, .14);
+}
+
+.marsh-region-grid article.locked {
+  opacity: .6;
+  filter: grayscale(.45);
+}
+
+.marsh-region-grid article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.marsh-region-grid p,
+.marsh-region-grid small {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .marsh-position,
+  .marsh-tactics {
+    grid-template-columns: 1fr;
+  }
+
+  .marsh-distance-track {
+    grid-column: auto;
+  }
+
+  .marsh-chapter {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
