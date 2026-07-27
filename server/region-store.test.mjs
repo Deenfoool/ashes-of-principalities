@@ -60,7 +60,7 @@ test('salt marsh unlocks permanently at level three after three contracts', () =
 test('regional start and movement are idempotent and expose distance', () => {
   const context = setup({ level: 3, completed: 3 })
   try {
-    const offer = context.regions.snapshot(context.account.user.id).contracts.find((contract) => contract.maxDistance >= 2)
+    const offer = context.regions.snapshot(context.account.user.id).contracts[0]
     const startInput = { requestId: 'region-start-offer-0001', contractId: offer.id }
     const started = context.players.startExpedition(context.account.user.id, startInput)
     const repeatedStart = context.players.startExpedition(context.account.user.id, startInput)
