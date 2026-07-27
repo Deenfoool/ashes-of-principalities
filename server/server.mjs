@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
 import { createApiHandler, sessionTokenFromRequest } from './api.mjs'
 import { createCraftingApiHandler } from './crafting-api.mjs'
+import { installCraftingMigrations } from './crafting-migrations.mjs'
 import { CraftingStore } from './crafting-store.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
 import { createStoryApiHandler } from './story-api.mjs'
@@ -30,6 +31,7 @@ const stories = new StoryStore(store, players)
 const survival = new SurvivalStore(store, players)
 installSurvivalRewards(store.db)
 const crafting = new CraftingStore(store, players, survival)
+installCraftingMigrations(store.db)
 const handleCraftingApi = createCraftingApiHandler(store, crafting)
 const handleSurvivalApi = createSurvivalApiHandler(store, survival)
 const handleStoryApi = createStoryApiHandler(store, players, stories)
