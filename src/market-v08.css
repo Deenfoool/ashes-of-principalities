@@ -1,0 +1,44 @@
+.m-market-summary { display: grid; gap: 3px; text-align: right; }
+.m-market-summary span, .m-market-summary small { color: var(--u-muted); }
+.m-market-summary strong { font-size: 1.5rem; color: var(--u-accent); }
+.m-tabs { margin-bottom: 0; flex-wrap: wrap; }
+.m-listing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.m-listing { display: grid; align-content: start; gap: 12px; border: 1px solid var(--u-border); background: rgba(10, 8, 7, .42); padding: 16px; }
+.m-listing.mine { border-style: dashed; opacity: .78; }
+.m-listing header { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.m-listing header > div { display: grid; gap: 4px; }
+.m-listing header span, .m-listing p, .m-listing-meta, .m-buy-row label, .m-buy-row span, .m-own-label { color: var(--u-muted); }
+.m-listing header > strong { color: var(--u-accent); white-space: nowrap; }
+.m-listing p { margin: 0; }
+.m-listing-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.m-own-label { border-top: 1px solid var(--u-border); padding-top: 11px; }
+.m-buy-row { display: grid; grid-template-columns: minmax(80px, 110px) 1fr auto; gap: 9px; align-items: end; border-top: 1px solid var(--u-border); padding-top: 12px; }
+.m-buy-row label, .m-buy-row > div { display: grid; gap: 5px; }
+.m-buy-row > div { text-align: right; }
+.m-buy-row input { width: 100%; }
+.m-sell-form { display: grid; grid-template-columns: minmax(220px, 1.3fr) 130px 150px minmax(190px, .8fr) auto; gap: 10px; align-items: end; }
+.m-sell-form label, .m-sell-form > div { display: grid; gap: 6px; color: var(--u-muted); }
+.m-sell-form > div strong { color: var(--u-text); }
+.m-own-list, .m-trade-list { display: grid; gap: 9px; }
+.m-own-list article, .m-trade-list article { display: flex; justify-content: space-between; gap: 16px; align-items: center; border: 1px solid var(--u-border); background: rgba(10, 8, 7, .34); padding: 14px; }
+.m-own-list article > div, .m-trade-list article > div { display: grid; gap: 4px; }
+.m-own-list span, .m-own-list small, .m-trade-list span, .m-trade-list small, .m-trade-list time { color: var(--u-muted); }
+.m-trade-list article > div:last-child { min-width: 150px; text-align: right; }
+.m-trade-list article > div:last-child strong { color: var(--u-accent); }
+
+@media (max-width: 1180px) {
+  .m-listing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .m-sell-form { grid-template-columns: 1fr 120px 140px; }
+  .m-sell-form > div { grid-column: 1 / 3; }
+}
+
+@media (max-width: 720px) {
+  .m-market-summary { text-align: left; }
+  .m-listing-grid { grid-template-columns: 1fr; }
+  .m-buy-row, .m-sell-form { grid-template-columns: 1fr; }
+  .m-buy-row > div { text-align: left; }
+  .m-sell-form > div { grid-column: auto; }
+  .m-own-list article, .m-trade-list article { display: grid; align-items: stretch; }
+  .m-trade-list article > div:last-child { min-width: 0; text-align: left; }
+  .u-mobile-nav { grid-template-columns: repeat(7, minmax(72px, 1fr)); overflow-x: auto; }
+}
