@@ -12,6 +12,7 @@ import { CraftingStore } from './crafting-store.mjs'
 import { createMarketApiHandler } from './market-api.mjs'
 import { MarketStore } from './market-store.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
+import { installRegionFixes } from './region-fixes.mjs'
 import { RegionStore } from './region-store.mjs'
 import { createStoryApiHandler } from './story-api.mjs'
 import { createSurvivalApiHandler } from './survival-api.mjs'
@@ -45,6 +46,7 @@ const artifacts = new UniqueItemStore(store, players, survival, market)
 installUniqueItemFixes(store.db, artifacts)
 artifacts.patchCrafting(crafting)
 const regions = new RegionStore(store, players)
+installRegionFixes(store.db, regions)
 const commissions = new CommissionStore(store, players, market)
 const handleUniqueItemApi = createUniqueItemApiHandler(store, artifacts)
 const handleCommissionApi = createCommissionApiHandler(store, commissions)
