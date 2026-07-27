@@ -75,13 +75,6 @@ function requestIdFor(path: string, body: Record<string, unknown>) {
   return { key, requestId }
 }
 
-function clearPendingMarketRequests() {
-  for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
-    const key = sessionStorage.key(index)
-    if (key?.startsWith(STORAGE_PREFIX)) sessionStorage.removeItem(key)
-  }
-}
-
 async function parse<T>(response: Response): Promise<T> {
   let payload: unknown = null
   try { payload = await response.json() } catch { /* readable fallback below */ }
@@ -107,7 +100,7 @@ async function post(path: string, body: Record<string, unknown> = {}) {
       body: JSON.stringify({ ...body, requestId: receipt.requestId }),
     })
   } catch (error) {
-    // Keep the request ID. A manual retry will ask the server for the same receipt.
+    // Keep the request ID. An explicit repeat will request the same server receipt.
     throw error
   }
 
@@ -115,15 +108,10 @@ async function post(path: string, body: Record<string, unknown> = {}) {
   return parse<MarketSnapshot>(response)
 }
 
-export const getMarket = async () => {
-  const snapshot = await parse<MarketSnapshot>(await fetch('/api/market', {
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
-  }))
-  // A successful authoritative refresh resolves any previously uncertain mutation.
-  clearPendingMarketRequests()
-  return snapshot
-}
+export const getMarket = async () => parse<MarketSnapshot>(await fetch('/api/market', {
+  credentials: 'same-origin',
+  headers: { Accept: 'application/json' },
+}))
 
 export const createMarketListing = (itemId: string, quantity: number, unitPrice: number) =>
   post('/api/market/listings', { itemId, quantity, unitPrice })
