@@ -6,15 +6,26 @@ export type ItemQuality = 'worn' | 'common' | 'good' | 'masterwork'
 
 export interface SurvivalItem {
   id: string
+  templateId?: string
   name: string
   quantity: number
-  type: 'tool' | 'material' | 'quest' | 'relic' | string
+  type: 'tool' | 'weapon' | 'armor' | 'material' | 'quest' | 'relic' | string
   quality: ItemQuality
   durability: number
   maxDurability: number
   equipped: boolean
   repairCount: number
   broken: boolean
+  unique?: boolean
+  serialNumber?: number
+  serial?: string
+  makerName?: string | null
+  originType?: string
+  originDetail?: string
+  tradeCount?: number
+  tradable?: boolean
+  createdAt?: number
+  updatedAt?: number
 }
 
 export interface SurvivalInjury {
