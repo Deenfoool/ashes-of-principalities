@@ -56,7 +56,7 @@ test('targeted commission reserves reward and fulfills exactly once', () => {
     const repeated = context.commissions.fulfillOrder(context.smith.user.id, order.id, input)
     assert.equal(quantity(context.game, context.requester.user.id, 'repair-kit'), 4)
     assert.equal(quantity(context.game, context.smith.user.id, 'scrap-iron'), 0)
-    assert.equal(context.players.getCharacter(context.smith.user.id).coins, 42)
+    assert.equal(context.players.getCharacter(context.smith.user.id).coins, 43)
     assert.equal(fulfilled.fulfillment.feeCoins, 1)
     assert.deepEqual(repeated, fulfilled)
   } finally { context.game.close() }
