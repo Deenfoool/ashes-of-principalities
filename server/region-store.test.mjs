@@ -13,7 +13,7 @@ import { installUniqueItemFixes } from './unique-item-fixes.mjs'
 import { UniqueItemStore } from './unique-item-store.mjs'
 import { GameStore } from './store.mjs'
 
-function setup({ level = 1, completed = 0 } = {}) {
+function setup({ level = 1, completed = 0, ashVictories = 0 } = {}) {
   const game = new GameStore(':memory:')
   const players = new PlayerStore(game)
   const stories = new StoryStore(game, players)
@@ -27,16 +27,18 @@ function setup({ level = 1, completed = 0 } = {}) {
   artifacts.patchCrafting(crafting)
   const regions = new RegionStore(game, players)
   installRegionFixes(game.db, regions, players)
-  const account = game.register({ username: `region_user_${level}_${completed}`, password: '12345678', displayName: 'Ратибор' })
+  const account = game.register({ username: `region_user_${level}_${completed}_${ashVictories}`, password: '12345678', displayName: 'Ратибор' })
   players.createCharacter(account.user.id, { requestId: 'region-create-hero-0001', name: 'Ратибор', profession: 'hunter' })
   stories.publicStory(account.user.id)
   game.db.prepare("UPDATE player_story_state SET scene_id = 'tavern', chapter_complete = 1 WHERE user_id = ?").run(account.user.id)
   game.db.prepare('UPDATE player_characters SET level = ?, completed_contracts = ?, stamina = 12, max_stamina = 12 WHERE user_id = ?').run(level, completed, account.user.id)
+  regions.snapshot(account.user.id)
+  game.db.prepare("UPDATE player_region_progress SET victories = ? WHERE user_id = ? AND region_id = 'ash-road'").run(ashVictories, account.user.id)
   return { game, players, stories, regions, account }
 }
 
 test('daily authored offers are stable and second region remains locked early', () => {
-  const context = setup()
+  const context = setup({ level: 3, completed: 3, ashVictories: 0 })
   try {
     const first = context.regions.snapshot(context.account.user.id)
     const repeated = context.regions.snapshot(context.account.user.id)
@@ -44,23 +46,25 @@ test('daily authored offers are stable and second region remains locked early', 
     assert.deepEqual(repeated.contracts.map((contract) => contract.id), first.contracts.map((contract) => contract.id))
     assert.equal(first.regions.find((region) => region.id === 'ash-road').unlocked, true)
     assert.equal(first.regions.find((region) => region.id === 'salt-marsh').unlocked, false)
+    assert.match(first.regions.find((region) => region.id === 'salt-marsh').requirement, /побед 0/)
     assert.equal(new Set(first.contracts.map((contract) => contract.id)).size, 3)
   } finally { context.game.close() }
 })
 
-test('salt marsh unlocks permanently at level three after three contracts', () => {
-  const context = setup({ level: 3, completed: 3 })
+test('salt marsh unlocks permanently at level three after three ash road victories', () => {
+  const context = setup({ level: 3, completed: 3, ashVictories: 3 })
   try {
     const snapshot = context.regions.snapshot(context.account.user.id)
     assert.equal(snapshot.regions.find((region) => region.id === 'salt-marsh').unlocked, true)
     assert.equal(snapshot.contracts.filter((contract) => contract.regionId === 'salt-marsh').length, 3)
     context.game.db.prepare('UPDATE player_characters SET level = 1, completed_contracts = 0 WHERE user_id = ?').run(context.account.user.id)
+    context.game.db.prepare("UPDATE player_region_progress SET victories = 0 WHERE user_id = ? AND region_id = 'ash-road'").run(context.account.user.id)
     assert.equal(context.regions.snapshot(context.account.user.id).regions.find((region) => region.id === 'salt-marsh').unlocked, true)
   } finally { context.game.close() }
 })
 
 test('regional start and movement are idempotent and expose distance', () => {
-  const context = setup({ level: 3, completed: 3 })
+  const context = setup({ level: 3, completed: 3, ashVictories: 3 })
   try {
     const offer = context.regions.snapshot(context.account.user.id).contracts[0]
     const startInput = { requestId: 'region-start-offer-0001', contractId: offer.id }
@@ -83,7 +87,7 @@ test('regional start and movement are idempotent and expose distance', () => {
 })
 
 test('confirmed profession action replays after its final durability point breaks', () => {
-  const context = setup({ level: 3, completed: 3 })
+  const context = setup({ level: 3, completed: 3, ashVictories: 3 })
   try {
     const offer = context.regions.snapshot(context.account.user.id).contracts[0]
     const started = context.players.startExpedition(context.account.user.id, { requestId: 'region-break-start-0001', contractId: offer.id })
@@ -99,7 +103,7 @@ test('confirmed profession action replays after its final durability point break
 })
 
 test('regional victory closes one offer and counts one victory only', () => {
-  const context = setup({ level: 3, completed: 3 })
+  const context = setup({ level: 3, completed: 3, ashVictories: 3 })
   try {
     const offer = context.regions.snapshot(context.account.user.id).contracts[0]
     const started = context.players.startExpedition(context.account.user.id, { requestId: 'region-win-start-0001', contractId: offer.id })
@@ -110,7 +114,8 @@ test('regional victory closes one offer and counts one victory only', () => {
     const repeated = context.players.actExpedition(context.account.user.id, input)
     assert.deepEqual(repeated, won)
     assert.equal(context.game.db.prepare('SELECT status FROM player_contract_offers WHERE id = ?').get(offer.id).status, 'won')
-    assert.equal(context.game.db.prepare('SELECT victories FROM player_region_progress WHERE user_id = ? AND region_id = ?').get(context.account.user.id, offer.regionId).victories, 1)
+    const expectedVictories = offer.regionId === 'ash-road' ? 4 : 1
+    assert.equal(context.game.db.prepare('SELECT victories FROM player_region_progress WHERE user_id = ? AND region_id = ?').get(context.account.user.id, offer.regionId).victories, expectedVictories)
     assert.equal(context.players.getCharacter(context.account.user.id).completedContracts, 4)
   } finally { context.game.close() }
 })
