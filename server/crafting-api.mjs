@@ -12,6 +12,17 @@ function sendJson(response, status, payload) {
   response.end(JSON.stringify(payload))
 }
 
+function presentWorkshop(workshop) {
+  if (!workshop?.character || !Array.isArray(workshop.recipes)) return workshop
+  if (workshop.character.profession !== 'blacksmith') return workshop
+  return {
+    ...workshop,
+    recipes: workshop.recipes.map((recipe) => recipe.id === 'field-repair-kit'
+      ? { ...recipe, result: 'Полевой ремкомплект ×2' }
+      : recipe),
+  }
+}
+
 async function readJson(request) {
   const chunks = []
   let length = 0
@@ -42,14 +53,14 @@ export function createCraftingApiHandler(store, crafting) {
     try {
       const user = requireUser(store, request)
       if (request.method === 'GET' && url.pathname === '/api/crafting') {
-        sendJson(response, 200, crafting.workshop(user.id))
+        sendJson(response, 200, presentWorkshop(crafting.workshop(user.id)))
         return true
       }
 
       const match = url.pathname.match(/^\/api\/crafting\/([^/]+)$/)
       if (request.method === 'POST' && match) {
         const body = await readJson(request)
-        sendJson(response, 200, crafting.craft(user.id, decodeURIComponent(match[1]), body))
+        sendJson(response, 200, presentWorkshop(crafting.craft(user.id, decodeURIComponent(match[1]), body)))
         return true
       }
 
