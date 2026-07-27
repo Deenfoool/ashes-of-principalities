@@ -1,10 +1,18 @@
 export type OnlineProfession = 'blacksmith' | 'herbalist' | 'hunter' | 'scribe' | 'carter' | 'wanderer'
 export type CombatAction = 'attack' | 'guard' | 'prepare' | 'profession' | 'flee' | 'advance' | 'retreat'
+export type ExpeditionTactic = 'cover' | 'trap'
 
 export interface ServerInventoryItem {
   id: string
   name: string
   quantity: number
+}
+
+export interface ServerTactic {
+  id: ExpeditionTactic
+  label: string
+  available: boolean
+  reason: string
 }
 
 export interface ServerExpedition {
@@ -33,6 +41,7 @@ export interface ServerExpedition {
   complication?: string | null
   objective?: string | null
   enemyStyle?: 'melee' | 'ranged' | 'skirmisher'
+  tactics?: ServerTactic[]
 }
 
 export interface ServerCharacter {
@@ -105,7 +114,11 @@ interface QueuedOperation {
 }
 
 const QUEUE_KEY = 'ashes-of-principalities:offline-actions:v1'
-const SEQUENTIAL_PATHS = new Set(['/api/player/expeditions', '/api/player/expeditions/action'])
+const SEQUENTIAL_PATHS = new Set([
+  '/api/player/expeditions',
+  '/api/player/expeditions/action',
+  '/api/player/expeditions/tactic',
+])
 
 export class PlayerApiError extends Error {
   code: string
@@ -186,7 +199,7 @@ async function post<T>(
   } catch (error) {
     if (error instanceof PlayerApiError || options.queueOnNetworkFailure === false) throw error
     const queue = readQueue()
-    if (SEQUENTIAL_PATHS.has(path) && queue.some((operation) => operation.path === path)) {
+    if (SEQUENTIAL_PATHS.has(path) && queue.some((operation) => SEQUENTIAL_PATHS.has(operation.path))) {
       throw new QueuedPlayerAction()
     }
     if (!queue.some((operation) => operation.id === requestId)) {
@@ -232,6 +245,9 @@ export const startServerExpedition = (contractId: string) =>
 
 export const actInServerExpedition = (expeditionId: string, action: CombatAction) =>
   post<{ character: ServerCharacter }>('/api/player/expeditions/action', { expeditionId, action }, { queueOnNetworkFailure: true })
+
+export const useExpeditionTactic = (expeditionId: string, tactic: ExpeditionTactic) =>
+  post<{ character: ServerCharacter }>('/api/player/expeditions/tactic', { expeditionId, tactic }, { queueOnNetworkFailure: true })
 
 export const restServerCharacter = () =>
   post<{ character: ServerCharacter }>('/api/player/rest', {}, { queueOnNetworkFailure: true })
