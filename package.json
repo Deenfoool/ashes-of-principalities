@@ -9,14 +9,14 @@
   "scripts": {
     "dev": "node tools/dev.mjs",
     "dev:web": "vite --host 0.0.0.0",
-    "dev:server": "node --watch server/server-v05.mjs",
+    "dev:server": "node --watch server/server.mjs",
     "test:server": "node --test server/*.test.mjs",
     "test:game": "node tools/test-game.mjs",
     "test": "npm run test:server && npm run test:game",
     "check": "tsc --noEmit",
     "build:client": "vite build",
     "build": "npm run test && npm run check && npm run build:client",
-    "start": "node server/server-v05.mjs --serve-dist",
+    "start": "node server/server.mjs --serve-dist",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
