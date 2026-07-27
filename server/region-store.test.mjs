@@ -4,6 +4,7 @@ import { CraftingStore } from './crafting-store.mjs'
 import { installCraftingMigrations } from './crafting-migrations.mjs'
 import { MarketStore } from './market-store.mjs'
 import { PlayerStore } from './player-store.mjs'
+import { installRegionFixes } from './region-fixes.mjs'
 import { RegionStore } from './region-store.mjs'
 import { StoryStore } from './story-store.mjs'
 import { installSurvivalRewards } from './survival-rewards.mjs'
@@ -25,6 +26,7 @@ function setup({ level = 1, completed = 0 } = {}) {
   installUniqueItemFixes(game.db, artifacts)
   artifacts.patchCrafting(crafting)
   const regions = new RegionStore(game, players)
+  installRegionFixes(game.db, regions, players)
   const account = game.register({ username: `region_user_${level}_${completed}`, password: '12345678', displayName: 'Ратибор' })
   players.createCharacter(account.user.id, { requestId: 'region-create-hero-0001', name: 'Ратибор', profession: 'hunter' })
   stories.publicStory(account.user.id)
@@ -77,6 +79,22 @@ test('regional start and movement are idempotent and expose distance', () => {
     assert.deepEqual(repeatedMove, moved)
     assert.equal(context.players.getCharacter(context.account.user.id).activeExpedition.distance, 2)
     assert.equal(context.players.getCharacter(context.account.user.id).stamina, beforeStamina - 1)
+  } finally { context.game.close() }
+})
+
+test('confirmed profession action replays after its final durability point breaks', () => {
+  const context = setup({ level: 3, completed: 3 })
+  try {
+    const offer = context.regions.snapshot(context.account.user.id).contracts[0]
+    const started = context.players.startExpedition(context.account.user.id, { requestId: 'region-break-start-0001', contractId: offer.id })
+    const runId = started.character.activeExpedition.id
+    context.game.db.prepare('UPDATE player_expeditions SET enemy_health = 100, enemy_max_health = 100, distance = 2, max_distance = 3 WHERE id = ?').run(runId)
+    context.game.db.prepare('UPDATE unique_items SET durability = 1 WHERE owner_user_id = ? AND equipped = 1').run(context.account.user.id)
+    const input = { requestId: 'region-break-profession-0001', expeditionId: runId, action: 'profession' }
+    const first = context.players.actExpedition(context.account.user.id, input)
+    assert.equal(context.game.db.prepare('SELECT durability FROM unique_items WHERE owner_user_id = ? AND equipped = 1').get(context.account.user.id).durability, 0)
+    const repeated = context.players.actExpedition(context.account.user.id, input)
+    assert.deepEqual(repeated, first)
   } finally { context.game.close() }
 })
 
