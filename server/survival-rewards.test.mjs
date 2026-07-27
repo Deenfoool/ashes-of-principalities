@@ -20,7 +20,7 @@ function setup(username) {
   return { game, players, stories, survival, userId: account.user.id }
 }
 
-test('chapter completion awards one good durable tool that can be equipped', () => {
+test('chapter completion awards one good durable tool that stays equipped after migration reruns', () => {
   const context = setup('reward_chapter')
   try {
     context.game.db.prepare('UPDATE player_story_state SET chapter_complete = 1 WHERE user_id = ?').run(context.userId)
@@ -34,6 +34,15 @@ test('chapter completion awards one good durable tool that can be equipped', () 
     character = context.survival.equipItem(context.userId, 'road-blade', { requestId: 'reward-equip-0001' }).character
     assert.equal(character.equippedItem.id, 'road-blade')
     assert.equal(character.inventory.find((item) => item.id === 'smith-hammer').equipped, false)
+
+    context.survival.migrateExistingItems()
+    installSurvivalRewards(context.game.db)
+    character = context.players.getCharacter(context.userId)
+    assert.equal(character.equippedItem.id, 'road-blade')
+    assert.equal(
+      context.game.db.prepare("SELECT item_id FROM player_loadouts WHERE user_id = ? AND slot = 'tool'").get(context.userId).item_id,
+      'road-blade',
+    )
   } finally {
     context.game.close()
   }
