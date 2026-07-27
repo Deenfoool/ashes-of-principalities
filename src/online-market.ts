@@ -61,7 +61,26 @@ export interface MarketSnapshot {
   }
 }
 
-const requestId = () => crypto.randomUUID().replaceAll('-', '')
+const STORAGE_PREFIX = 'ashes:market-request:'
+const newRequestId = () => crypto.randomUUID().replaceAll('-', '')
+const operationKey = (path: string, body: Record<string, unknown>) =>
+  `${STORAGE_PREFIX}${path}:${JSON.stringify(Object.entries(body).sort(([left], [right]) => left.localeCompare(right)))}`
+
+function requestIdFor(path: string, body: Record<string, unknown>) {
+  const key = operationKey(path, body)
+  const existing = sessionStorage.getItem(key)
+  if (existing) return { key, requestId: existing }
+  const requestId = newRequestId()
+  sessionStorage.setItem(key, requestId)
+  return { key, requestId }
+}
+
+function clearPendingMarketRequests() {
+  for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+    const key = sessionStorage.key(index)
+    if (key?.startsWith(STORAGE_PREFIX)) sessionStorage.removeItem(key)
+  }
+}
 
 async function parse<T>(response: Response): Promise<T> {
   let payload: unknown = null
@@ -78,18 +97,33 @@ async function parse<T>(response: Response): Promise<T> {
 }
 
 async function post(path: string, body: Record<string, unknown> = {}) {
-  return parse<MarketSnapshot>(await fetch(path, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ ...body, requestId: requestId() }),
-  }))
+  const receipt = requestIdFor(path, body)
+  let response: Response
+  try {
+    response = await fetch(path, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ ...body, requestId: receipt.requestId }),
+    })
+  } catch (error) {
+    // Keep the request ID. A manual retry will ask the server for the same receipt.
+    throw error
+  }
+
+  sessionStorage.removeItem(receipt.key)
+  return parse<MarketSnapshot>(response)
 }
 
-export const getMarket = async () => parse<MarketSnapshot>(await fetch('/api/market', {
-  credentials: 'same-origin',
-  headers: { Accept: 'application/json' },
-}))
+export const getMarket = async () => {
+  const snapshot = await parse<MarketSnapshot>(await fetch('/api/market', {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  }))
+  // A successful authoritative refresh resolves any previously uncertain mutation.
+  clearPendingMarketRequests()
+  return snapshot
+}
 
 export const createMarketListing = (itemId: string, quantity: number, unitPrice: number) =>
   post('/api/market/listings', { itemId, quantity, unitPrice })
