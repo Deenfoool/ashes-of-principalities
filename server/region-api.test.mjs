@@ -108,6 +108,13 @@ test('regional offer starts through HTTP and broken tool blocks profession actio
     api.store.db.prepare("UPDATE player_story_state SET scene_id = 'tavern', chapter_complete = 1 WHERE user_id = ?").run(userId)
     api.store.db.prepare('UPDATE player_characters SET stamina = 12, max_stamina = 12 WHERE user_id = ?').run(userId)
 
+    const legacyBypass = await request(api.base, '/api/player/expeditions', {
+      method: 'POST', cookie: account.cookie,
+      body: { requestId: rid(), contractId: 'ash-wolf' },
+    })
+    assert.equal(legacyBypass.status, 404)
+    assert.equal(legacyBypass.data.error.code, 'contract-not-found')
+
     const rotation = await request(api.base, '/api/player/contracts', { cookie: account.cookie })
     assert.equal(rotation.data.contracts.length, 3)
     const offer = rotation.data.contracts[0]
