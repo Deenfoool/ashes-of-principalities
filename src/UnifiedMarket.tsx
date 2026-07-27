@@ -78,7 +78,11 @@ export default function UnifiedMarket({ character, onCharacter }: {
     }
   }, [onCharacter])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    const timer = window.setInterval(() => { void load() }, 20_000)
+    return () => window.clearInterval(timer)
+  }, [load])
 
   const selected = useMemo(() => snapshot?.sellable.find((item) => item.id === itemId) ?? null, [snapshot, itemId])
 
@@ -115,13 +119,17 @@ export default function UnifiedMarket({ character, onCharacter }: {
     <section className="u-panel">
       <header className="u-section-head">
         <div><p className="eyebrow">Сделки подтверждает сервер</p><h2>Торговая площадь</h2></div>
-        <div className="m-market-summary"><span>Монеты</span><strong>{snapshot.character?.coins ?? character.coins}</strong><small>Комиссия с продажи: {snapshot.feePercent}%</small></div>
+        <div className="m-market-summary"><span>Монеты</span><strong>{snapshot.character?.coins ?? character.coins}</strong><small>Комиссия округляется вниз до 5%</small></div>
       </header>
-      <div className="u-tabs m-tabs">
-        <button className={tab === 'market' ? 'active' : ''} onClick={() => setTab('market')} type="button">Рынок · {snapshot.listings.length}</button>
-        <button className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')} type="button">Мои объявления · {snapshot.ownListings.length}</button>
-        <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')} type="button">История · {snapshot.trades.length}</button>
+      <div className="m-market-toolbar">
+        <div className="u-tabs m-tabs">
+          <button className={tab === 'market' ? 'active' : ''} onClick={() => setTab('market')} type="button">Рынок · {snapshot.listings.length}</button>
+          <button className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')} type="button">Мои объявления · {snapshot.ownListings.length}</button>
+          <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')} type="button">История · {snapshot.trades.length}</button>
+        </div>
+        <button disabled={busy} onClick={() => void load()} type="button">Обновить</button>
       </div>
+      {snapshot.pendingCoins > 0 && <p className="u-notice">На счёте рода хранится {snapshot.pendingCoins} монет посмертной выручки. Они автоматически перейдут следующему наследнику.</p>}
       {!snapshot.safe && <p className="u-notice error">{snapshot.safeReason}</p>}
       {notice && <p className="u-notice">{notice}</p>}
       {error && <p className="u-notice error">{error}</p>}
