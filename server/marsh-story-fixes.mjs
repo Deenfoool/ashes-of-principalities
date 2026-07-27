@@ -10,6 +10,15 @@ export function installMarshStoryFixes(db, marshStories) {
   if (marshStories.__endingFixInstalled) return
   marshStories.__endingFixInstalled = true
 
+  const originalIsUnlocked = marshStories.isUnlocked.bind(marshStories)
+  marshStories.isUnlocked = (userId) => {
+    const firstChapter = db.prepare(`
+      SELECT chapter_complete FROM player_story_state WHERE user_id = ?
+    `).get(userId)
+    if (!Number(firstChapter?.chapter_complete)) return false
+    return originalIsUnlocked(userId)
+  }
+
   const originalPublicStory = marshStories.publicStory.bind(marshStories)
   marshStories.publicStory = (userId) => {
     const story = originalPublicStory(userId)
@@ -31,6 +40,13 @@ export function installMarshStoryFixes(db, marshStories) {
 
   const originalChoose = marshStories.choose.bind(marshStories)
   marshStories.choose = (userId, input) => {
+    if (!marshStories.isUnlocked(userId)) {
+      throw new StoreError(
+        'marsh-story-locked',
+        'Текущий герой должен завершить первую главу перед дорогой в Соляные топи.',
+        409,
+      )
+    }
     const state = db.prepare(`
       SELECT chapter_complete FROM player_marsh_story_state WHERE user_id = ?
     `).get(userId)
