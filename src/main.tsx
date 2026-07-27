@@ -12,6 +12,7 @@ import './market-v08.css'
 import './trade-v09.css'
 import './artifact-v010.css'
 import './region-v011.css'
+import './marsh-v012.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
