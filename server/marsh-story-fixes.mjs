@@ -44,6 +44,17 @@ export function installMarshStoryFixes(db, marshStories) {
 
   const originalChoose = marshStories.choose.bind(marshStories)
   marshStories.choose = (userId, input) => {
+    const choiceId = String(input.choiceId ?? '')
+    const requestId = String(input.requestId ?? '').trim()
+    const expectedAction = `marsh-story:${choiceId}`
+    const receipt = requestId
+      ? db.prepare(`
+          SELECT action, result_json FROM player_action_receipts
+          WHERE user_id = ? AND request_id = ?
+        `).get(userId, requestId)
+      : null
+    if (receipt?.action === expectedAction) return JSON.parse(receipt.result_json)
+
     if (!marshStories.isUnlocked(userId)) {
       throw new StoreError(
         'marsh-story-locked',
@@ -54,7 +65,6 @@ export function installMarshStoryFixes(db, marshStories) {
     const state = db.prepare(`
       SELECT chapter_complete FROM player_marsh_story_state WHERE user_id = ?
     `).get(userId)
-    const choiceId = String(input.choiceId ?? '')
     if (Number(state?.chapter_complete) && (choiceId === 'marsh-council' || ENDING_CHOICES.has(choiceId))) {
       throw new StoreError(
         'marsh-ending-locked',
