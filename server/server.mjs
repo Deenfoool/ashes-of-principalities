@@ -1,29 +1,56 @@
 import { createServer } from 'node:http'
-import { readFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
+import { canReceive, createChatMessage, parsePacket, visibleHistory } from './protocol.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const serveDist = process.argv.includes('--serve-dist')
 const port = Number(process.env.PORT || (serveDist ? 3000 : 3001))
-const allowedChannels = new Set(['general', 'trade', 'guild'])
+const dataDirectory = join(root, 'data')
+const chatFile = join(dataDirectory, 'chat.json')
 const messages = []
+const sessions = new WeakMap()
+let persistQueue = Promise.resolve()
 
-const seed = (channel, author, text) => ({
-  id: crypto.randomUUID(),
+const systemMessage = (channel, text, guildId = null) => createChatMessage({
   channel,
-  author,
+  author: 'Летописец',
   text,
-  timestamp: Date.now(),
-  system: author === 'Летописец',
+  guildId,
+  system: true,
 })
 
-messages.push(
-  seed('general', 'Летописец', 'Серверный костёр разожжён. Путники могут говорить.'),
-  seed('trade', 'Летописец', 'Торговый канал открыт. Сделки пока не защищены системой.'),
-  seed('guild', 'Летописец', 'Гильдейский канал станет закрытым после появления авторизации.'),
-)
+async function loadChatHistory() {
+  try {
+    const raw = JSON.parse(await readFile(chatFile, 'utf8'))
+    if (Array.isArray(raw)) {
+      for (const message of raw.slice(-300)) {
+        if (message && typeof message.id === 'string' && typeof message.text === 'string') messages.push(message)
+      }
+    }
+  } catch {
+    // A missing or damaged history file starts a new server chronicle.
+  }
+
+  if (messages.length === 0) {
+    messages.push(
+      systemMessage('general', 'Серверный костёр разожжён. Путники могут говорить.'),
+      systemMessage('trade', 'Торговый канал открыт. Не подтверждённые системой сделки совершаются на свой риск.'),
+    )
+  }
+}
+
+function persistChatHistory() {
+  const snapshot = JSON.stringify(messages.slice(-300), null, 2)
+  persistQueue = persistQueue
+    .then(() => mkdir(dataDirectory, { recursive: true }))
+    .then(() => writeFile(chatFile, snapshot, 'utf8'))
+    .catch((error) => console.error('Failed to persist chat history:', error))
+}
+
+await loadChatHistory()
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -31,6 +58,8 @@ const contentTypes = {
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
   '.webmanifest': 'application/manifest+json',
 }
 
@@ -73,13 +102,13 @@ async function serveStatic(request, response) {
 const server = createServer(async (request, response) => {
   if (request.url === '/api/health') {
     response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
-    response.end(JSON.stringify({ ok: true, service: 'ashes-of-principalities', clients: wss.clients.size }))
+    response.end(JSON.stringify({ ok: true, service: 'ashes-of-principalities', clients: wss.clients.size, messages: messages.length }))
     return
   }
   await serveStatic(request, response)
 })
 
-const wss = new WebSocketServer({ noServer: true })
+const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 })
 
 server.on('upgrade', (request, socket, head) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host}`)
@@ -91,26 +120,44 @@ server.on('upgrade', (request, socket, head) => {
 })
 
 wss.on('connection', (socket) => {
-  socket.send(JSON.stringify({ type: 'history', messages: messages.slice(-80) }))
+  sessions.set(socket, { initialized: false, playerId: null, author: 'Странник', guildId: null, lastMessageAt: 0 })
+  socket.send(JSON.stringify({ type: 'ready' }))
 
   socket.on('message', (raw) => {
-    try {
-      const payload = JSON.parse(raw.toString())
-      const channel = String(payload.channel ?? '')
-      const author = String(payload.author ?? 'Странник').trim().slice(0, 24) || 'Странник'
-      const text = String(payload.text ?? '').trim().slice(0, 280)
-      if (payload.type !== 'message' || !allowedChannels.has(channel) || !text) return
+    const parsed = parsePacket(raw.toString())
+    if (!parsed.ok) return
+    const session = sessions.get(socket)
+    if (!session) return
 
-      const message = { id: crypto.randomUUID(), channel, author, text, timestamp: Date.now() }
-      messages.push(message)
-      if (messages.length > 200) messages.splice(0, messages.length - 200)
+    if (parsed.packet.type === 'hello') {
+      session.initialized = true
+      session.playerId = parsed.packet.playerId
+      session.author = parsed.packet.author
+      session.guildId = parsed.packet.guildId
+      socket.send(JSON.stringify({ type: 'history', messages: visibleHistory(messages, session) }))
+      return
+    }
 
-      const packet = JSON.stringify({ type: 'message', message })
-      for (const client of wss.clients) {
-        if (client.readyState === WebSocket.OPEN) client.send(packet)
-      }
-    } catch {
-      // Invalid messages are ignored; the connection remains alive.
+    if (!session.initialized) return
+    const now = Date.now()
+    if (now - session.lastMessageAt < 700) return
+    if (parsed.packet.channel === 'guild' && !session.guildId) return
+    session.lastMessageAt = now
+
+    const message = createChatMessage({
+      channel: parsed.packet.channel,
+      author: session.author,
+      text: parsed.packet.text,
+      guildId: session.guildId,
+    })
+    messages.push(message)
+    if (messages.length > 300) messages.splice(0, messages.length - 300)
+    persistChatHistory()
+
+    const packet = JSON.stringify({ type: 'message', message })
+    for (const client of wss.clients) {
+      const targetSession = sessions.get(client)
+      if (client.readyState === WebSocket.OPEN && targetSession?.initialized && canReceive(message, targetSession)) client.send(packet)
     }
   })
 })
