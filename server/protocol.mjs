@@ -9,6 +9,7 @@ export const cleanText = (value, limit) => String(value ?? '')
 export const cleanAuthor = (value) => cleanText(value, 24) || 'Странник'
 export const cleanGuildId = (value) => cleanText(value, 64) || null
 export const cleanPlayerId = (value) => cleanText(value, 64) || null
+export const cleanToken = (value) => cleanText(value, 128) || null
 
 export function parsePacket(raw) {
   let payload
@@ -20,12 +21,14 @@ export function parsePacket(raw) {
 
   if (payload?.type === 'hello') {
     const playerId = cleanPlayerId(payload.playerId)
-    if (!playerId) return { ok: false, error: 'missing-player-id' }
+    const token = cleanToken(payload.token)
+    if (!playerId && !token) return { ok: false, error: 'missing-identity' }
     return {
       ok: true,
       packet: {
         type: 'hello',
         playerId,
+        token,
         author: cleanAuthor(payload.author),
         guildId: cleanGuildId(payload.guildId),
       },
