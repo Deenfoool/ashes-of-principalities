@@ -1,12 +1,15 @@
 import { StoreError } from './store.mjs'
 
 const MAX_BODY = 32 * 1024
+const SESSION_COOKIE = 'aop_session'
+const SESSION_MAX_AGE = 30 * 24 * 60 * 60
 
-function sendJson(response, status, payload) {
+function sendJson(response, status, payload, extraHeaders = {}) {
   response.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
+    ...extraHeaders,
   })
   response.end(JSON.stringify(payload))
 }
@@ -27,13 +30,33 @@ async function readJson(request) {
   }
 }
 
-function bearerToken(request) {
-  const header = String(request.headers.authorization ?? '')
-  return header.startsWith('Bearer ') ? header.slice(7).trim() : null
+export function parseCookies(header) {
+  const cookies = new Map()
+  for (const part of String(header ?? '').split(';')) {
+    const separator = part.indexOf('=')
+    if (separator < 0) continue
+    const key = part.slice(0, separator).trim()
+    const value = part.slice(separator + 1).trim()
+    if (!key) continue
+    try { cookies.set(key, decodeURIComponent(value)) } catch { cookies.set(key, value) }
+  }
+  return cookies
+}
+
+export function sessionTokenFromRequest(request) {
+  const authorization = String(request.headers.authorization ?? '')
+  if (authorization.startsWith('Bearer ')) return authorization.slice(7).trim()
+  return parseCookies(request.headers.cookie).get(SESSION_COOKIE) ?? null
+}
+
+function sessionCookie(token, clear = false) {
+  const secure = process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''
+  if (clear) return `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_MAX_AGE}${secure}`
 }
 
 function requireUser(store, request) {
-  const token = bearerToken(request)
+  const token = sessionTokenFromRequest(request)
   const user = store.authenticate(token)
   if (!user) throw new StoreError('unauthorized', 'Требуется вход в аккаунт.', 401)
   return { token, user }
@@ -52,20 +75,22 @@ export function createApiHandler(store) {
 
       if (request.method === 'POST' && url.pathname === '/api/auth/register') {
         const body = await readJson(request)
-        sendJson(response, 201, store.register(body))
+        const result = store.register(body)
+        sendJson(response, 201, { user: result.user }, { 'Set-Cookie': sessionCookie(result.token) })
         return true
       }
 
       if (request.method === 'POST' && url.pathname === '/api/auth/login') {
         const body = await readJson(request)
-        sendJson(response, 200, store.login(body))
+        const result = store.login(body)
+        sendJson(response, 200, { user: result.user }, { 'Set-Cookie': sessionCookie(result.token) })
         return true
       }
 
       if (request.method === 'POST' && url.pathname === '/api/auth/logout') {
-        const token = bearerToken(request)
+        const token = sessionTokenFromRequest(request)
         store.logout(token)
-        sendJson(response, 200, { ok: true })
+        sendJson(response, 200, { ok: true }, { 'Set-Cookie': sessionCookie('', true) })
         return true
       }
 
