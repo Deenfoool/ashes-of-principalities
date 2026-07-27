@@ -11,8 +11,9 @@ test('author always has a safe fallback and a length limit', () => {
   assert.equal(cleanAuthor('а'.repeat(40)).length, 24)
 })
 
-test('hello packet requires a player id', () => {
+test('hello packet requires a guest id or account token', () => {
   assert.equal(parsePacket(JSON.stringify({ type: 'hello', author: 'Мирослав' })).ok, false)
+  assert.equal(parsePacket(JSON.stringify({ type: 'hello', token: 'session-token', author: 'Мирослав' })).ok, true)
   const result = parsePacket(JSON.stringify({ type: 'hello', playerId: 'abc', author: 'Мирослав', guildId: 'guild-1' }))
   assert.equal(result.ok, true)
   assert.equal(result.packet.guildId, 'guild-1')
