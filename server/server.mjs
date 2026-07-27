@@ -9,6 +9,12 @@ import { CommissionStore } from './commission-store.mjs'
 import { createCraftingApiHandler } from './crafting-api.mjs'
 import { installCraftingMigrations } from './crafting-migrations.mjs'
 import { CraftingStore } from './crafting-store.mjs'
+import { installMarshCrafting } from './marsh-crafting.mjs'
+import { installMarshMigrations } from './marsh-migrations.mjs'
+import { createMarshStoryApiHandler } from './marsh-story-api.mjs'
+import { MarshStoryStore } from './marsh-story-store.mjs'
+import { createMarshSystemApiHandler } from './marsh-system-api.mjs'
+import { installMarshBalanceMigrations, MarshSystem } from './marsh-system.mjs'
 import { createMarketApiHandler } from './market-api.mjs'
 import { MarketStore } from './market-store.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
@@ -47,11 +53,18 @@ installUniqueItemFixes(store.db, artifacts)
 artifacts.patchCrafting(crafting)
 const regions = new RegionStore(store, players)
 installRegionFixes(store.db, regions)
+installMarshMigrations(store.db)
+installMarshBalanceMigrations(store.db)
+const marshSystem = new MarshSystem(store, players)
+installMarshCrafting(store, players, crafting)
+const marshStories = new MarshStoryStore(store, players, stories, regions)
 const commissions = new CommissionStore(store, players, market)
 const handleUniqueItemApi = createUniqueItemApiHandler(store, artifacts)
 const handleCommissionApi = createCommissionApiHandler(store, commissions)
 const handleMarketApi = createMarketApiHandler(store, market)
 const handleCraftingApi = createCraftingApiHandler(store, crafting)
+const handleMarshSystemApi = createMarshSystemApiHandler(store, marshSystem)
+const handleMarshStoryApi = createMarshStoryApiHandler(store, marshStories)
 const handleSurvivalApi = createSurvivalApiHandler(store, survival)
 const handleStoryApi = createStoryApiHandler(store, players, stories)
 const handlePlayerApi = createPlayerApiHandler(store, players, stories, regions)
@@ -149,6 +162,8 @@ const server = createServer(async (request, response) => {
   if (await handleCommissionApi(request, response)) return
   if (await handleMarketApi(request, response)) return
   if (await handleCraftingApi(request, response)) return
+  if (await handleMarshSystemApi(request, response)) return
+  if (await handleMarshStoryApi(request, response)) return
   if (await handleSurvivalApi(request, response)) return
   if (await handleStoryApi(request, response)) return
   if (await handlePlayerApi(request, response)) return
@@ -233,5 +248,5 @@ process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ashes server v0.11 listening on http://0.0.0.0:${port}`)
+  console.log(`Ashes server v0.12 listening on http://0.0.0.0:${port}`)
 })
