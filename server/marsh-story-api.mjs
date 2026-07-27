@@ -1,4 +1,5 @@
 import { sessionTokenFromRequest } from './api.mjs'
+import { installMarshStoryFixes } from './marsh-story-fixes.mjs'
 import { StoreError } from './store.mjs'
 
 const MAX_BODY = 32 * 1024
@@ -35,6 +36,7 @@ function requireUser(store, request) {
 }
 
 export function createMarshStoryApiHandler(store, marshStories) {
+  installMarshStoryFixes(store.db, marshStories)
   return async function handleMarshStoryApi(request, response) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     if (url.pathname !== '/api/marsh-story') return false
