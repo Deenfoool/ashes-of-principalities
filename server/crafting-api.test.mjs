@@ -83,6 +83,7 @@ test('crafting API requires a private session and never caches workshop data', a
     assert.equal(workshop.status, 200)
     assert.equal(workshop.cacheControl, 'no-store')
     assert.equal(Array.isArray(workshop.data.recipes), true)
+    assert.equal(workshop.data.recipes.find((recipe) => recipe.id === 'field-repair-kit').result, 'Полевой ремкомплект ×2')
   } finally {
     await api.close()
   }
