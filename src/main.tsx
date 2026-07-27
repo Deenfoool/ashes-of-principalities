@@ -4,6 +4,7 @@ import App from './AppV4'
 import './styles.css'
 import './online.css'
 import './online-player.css'
+import './compat-v04.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
