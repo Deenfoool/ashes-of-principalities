@@ -1,12 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './AppV6'
+import App from './App'
 import './styles.css'
 import './online.css'
 import './online-player.css'
 import './compat-v04.css'
 import './story-v05.css'
 import './unified-v06.css'
+import './crafting-v07.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
