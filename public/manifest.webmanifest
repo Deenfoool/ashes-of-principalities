@@ -1,0 +1,17 @@
+{
+  "name": "Пепел Княжеств",
+  "short_name": "Пепел",
+  "description": "Мрачная текстовая RPG-рогалик о ремесле, долгах и выживании среди гибнущих княжеств.",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#100e0c",
+  "theme_color": "#17130f",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+    {"src": "/maskable-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable"}
+  ]
+}
