@@ -23,7 +23,7 @@ const store = new GameStore(databaseFile)
 const players = new PlayerStore(store)
 const stories = new StoryStore(store, players)
 const handleStoryApi = createStoryApiHandler(store, players, stories)
-const handlePlayerApi = createPlayerApiHandler(store, players)
+const handlePlayerApi = createPlayerApiHandler(store, players, stories)
 const handleApi = createApiHandler(store)
 let persistQueue = Promise.resolve()
 
