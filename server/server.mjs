@@ -9,6 +9,7 @@ import { CommissionStore } from './commission-store.mjs'
 import { createCraftingApiHandler } from './crafting-api.mjs'
 import { installCraftingMigrations } from './crafting-migrations.mjs'
 import { CraftingStore } from './crafting-store.mjs'
+import { installEquipmentPresentation } from './equipment-presentation.mjs'
 import { EquipmentStore } from './equipment-store.mjs'
 import { backfillRegionalMaterials } from './marsh-backfill.mjs'
 import { installMarshCrafting } from './marsh-crafting.mjs'
@@ -66,6 +67,7 @@ const marshCrafting = installMarshCrafting(store, players, crafting)
 backfillRegionalMaterials(store.db, marshCrafting)
 installV013Migrations(store.db)
 const equipment = new EquipmentStore(store, players, survival, artifacts, crafting)
+installEquipmentPresentation(store.db, artifacts, equipment)
 const marshStories = new MarshStoryStore(store, players, stories, regions)
 const combat = new SquadCombatStore(store, players, regions, equipment, marshSystem, marshCrafting)
 installV013CombatFixes(combat)
