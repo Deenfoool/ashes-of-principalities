@@ -15,6 +15,14 @@ export function installV013Runtime(db) {
     DROP TRIGGER IF EXISTS trg_v013_craft_reforge_good;
     DROP TRIGGER IF EXISTS trg_v013_craft_reforge_masterwork;
 
+    INSERT INTO player_loadouts(user_id, slot, item_id, updated_at)
+    SELECT owner_user_id, equipment_slot, id, unixepoch('subsec') * 1000
+    FROM unique_items
+    WHERE owner_user_id IS NOT NULL AND equipped = 1
+    ON CONFLICT(user_id, slot) DO UPDATE SET
+      item_id = excluded.item_id,
+      updated_at = excluded.updated_at;
+
     DELETE FROM player_loadouts WHERE slot = 'tool';
     DELETE FROM player_loadouts
     WHERE slot IN ('main-hand', 'body', 'charm')
