@@ -5,6 +5,27 @@ export function installV013Runtime(db) {
     DROP TRIGGER IF EXISTS trg_v013_main_hand_wear;
     DROP TRIGGER IF EXISTS trg_v013_persist_loadout;
 
+    DELETE FROM player_loadouts WHERE slot = 'tool';
+    DELETE FROM player_loadouts
+    WHERE slot IN ('main-hand', 'body', 'charm')
+      AND NOT EXISTS (
+        SELECT 1 FROM unique_items item
+        WHERE item.id = player_loadouts.item_id
+          AND item.owner_user_id = player_loadouts.user_id
+          AND item.equipment_slot = player_loadouts.slot
+      );
+
+    UPDATE unique_items SET equipped = 0
+    WHERE owner_user_id IS NOT NULL;
+
+    UPDATE unique_items SET equipped = 1
+    WHERE EXISTS (
+      SELECT 1 FROM player_loadouts loadout
+      WHERE loadout.user_id = unique_items.owner_user_id
+        AND loadout.item_id = unique_items.id
+        AND loadout.slot = unique_items.equipment_slot
+    );
+
     CREATE TRIGGER trg_v013_main_hand_wear
     AFTER INSERT ON player_action_receipts
     WHEN NEW.action LIKE 'expedition:attack%' OR NEW.action LIKE 'expedition:profession%'
