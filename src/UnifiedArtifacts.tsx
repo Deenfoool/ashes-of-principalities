@@ -9,14 +9,23 @@ import {
   listArtifact,
 } from './online-artifacts'
 import type { ArtifactItem, ArtifactListing, ArtifactSnapshot } from './online-artifacts'
-import type { SurvivalCharacter } from './online-survival'
+import type { EquipmentSlot, SurvivalCharacter } from './online-survival'
 
 const professionNames: Record<OnlineProfession, string> = {
   blacksmith: 'Кузнец', herbalist: 'Травник', hunter: 'Охотник',
   scribe: 'Писарь', carter: 'Возчик', wanderer: 'Странник',
 }
 const qualityNames: Record<string, string> = { worn: 'изношенное', common: 'обычное', good: 'добротное', masterwork: 'мастерское' }
-const originNames: Record<string, string> = { starter: 'родовое начало', 'legacy-starter': 'старое родовое снаряжение', 'legacy-migration': 'предмет старого мира', 'chapter-reward': 'награда первой главы', crafted: 'работа мастера' }
+const slotNames: Record<EquipmentSlot, string> = { 'main-hand': 'основная рука', body: 'броня', charm: 'оберег' }
+const originNames: Record<string, string> = {
+  starter: 'родовое начало',
+  'legacy-starter': 'старое родовое снаряжение',
+  'legacy-migration': 'предмет старого мира',
+  'chapter-reward': 'награда первой главы',
+  crafted: 'работа мастера',
+  'crafted-equipment': 'региональная работа мастера',
+  'boss-reward': 'награда регионального босса',
+}
 const materialNames: Record<string, string> = {
   'scrap-iron': 'лом железа', charcoal: 'древесный уголь', cloth: 'грубая ткань',
   'burnt-hide': 'обожжённая шкура', 'river-bone': 'речная кость', 'bitter-herb': 'горькая трава',
@@ -32,10 +41,19 @@ const deadline = (value: number) => {
 }
 
 function ArtifactFacts({ item }: { item: ArtifactItem }) {
+  const combatFacts = [
+    (item.armor ?? 0) > 0 ? `броня ${item.armor}` : null,
+    (item.zoneResistance ?? 0) > 0 ? `контроль −${item.zoneResistance}` : null,
+    (item.movementDiscount ?? 0) > 0 ? `движение −${item.movementDiscount}` : null,
+    (item.hexResistance ?? 0) > 0 ? `порча −${item.hexResistance}` : null,
+    (item.elevationBonus ?? 0) > 0 ? `высота +${item.elevationBonus}` : null,
+  ].filter((value): value is string => Boolean(value))
   return <div className="a-facts">
     <span>{item.serial}</span>
     <span>{qualityNames[item.quality] ?? item.quality}</span>
+    {item.equipmentSlot && <span>Слот: {slotNames[item.equipmentSlot]}</span>}
     <span>{item.durability}/{item.maxDurability} прочности</span>
+    {combatFacts.map((fact) => <span key={fact}>{fact}</span>)}
     <span>Переходов между владельцами: {item.tradeCount}</span>
   </div>
 }
@@ -133,7 +151,7 @@ export default function UnifiedArtifacts({ character, onCharacter }: {
         </article>)}</div>}
       </section>
       <section className="u-panel"><p className="eyebrow">Возврат только до продажи</p><h2>Мои объявления</h2>
-        {snapshot.ownListings.length === 0 ? <p className="u-empty">Объявлений уникальных вещей ещё нет.</p> : <div className="a-owned-list">{snapshot.ownListings.map((listing) => <article key={listing.id}><div><strong>{listing.item.name} · {listing.item.serial}</strong><small>{listing.status} · {listing.unitPrice} монет{listing.status === 'active' ? ` · ${deadline(listing.expiresAt)}` : ''}</small></div>{listing.status === 'active' && <button disabled={busy || !snapshot.safe} onClick={() => void apply(() => cancelArtifactListing(listing.id), () => `Объявление ${listing.item.serial} отменено.`)} type="button">Отменить</button>}</article>)}</div>}
+        {snapshot.ownListings.length === 0 ? <p className="u-empty">Объявлений уникальных вещей ещё нет.</p> : <div className="a-owned-list">{snapshot.ownListings.map((listing) => <article key={listing.id}><div><strong>{listing.item.name} · {listing.item.serial}</strong><ArtifactFacts item={listing.item} /><small>{listing.status} · {listing.unitPrice} монет{listing.status === 'active' ? ` · ${deadline(listing.expiresAt)}` : ''}</small></div>{listing.status === 'active' && <button disabled={busy || !snapshot.safe} onClick={() => void apply(() => cancelArtifactListing(listing.id), () => `Объявление ${listing.item.serial} отменено.`)} type="button">Отменить</button>}</article>)}</div>}
       </section>
     </>}
 
