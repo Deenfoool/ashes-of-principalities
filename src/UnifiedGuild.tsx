@@ -17,6 +17,7 @@ import type { OnlineMember, OnlineRole, OnlineSnapshot, TreasuryEntry } from './
 import { donateServerCoins } from './online-player'
 import { createPaidServerGuild } from './online-survival'
 import type { SurvivalCharacter } from './online-survival'
+import UnifiedGuildExpansion from './UnifiedGuildExpansion'
 
 const branchInfo: Record<GuildBranchId, { name: string; description: string }> = {
   warband: { name: 'Дружина', description: 'Боевые преимущества подтверждённых сервером походов.' },
@@ -113,7 +114,7 @@ export default function UnifiedGuild({
     </section>
 
     <section className="u-panel">
-      <p className="eyebrow">Только реальные монеты героя</p><h2>Казна</h2>
+      <p className="eyebrow">Только реальные монеты героя</p><h2>Монетная казна</h2>
       <form className="u-inline-form compact" onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         void run(async () => {
@@ -124,6 +125,8 @@ export default function UnifiedGuild({
       }}><label>Сумма<input min="1" onChange={(event) => setDeposit(event.target.value)} type="number" value={deposit} /></label><button disabled={busy || Number(deposit) < 1 || Number(deposit) > (character?.coins ?? 0)} type="submit">Внести</button></form>
       <div className="u-log">{log.slice(0, 12).map((entry) => <p key={entry.id}><span>{entry.playerName}</span><strong>+{entry.amount}</strong><time>{new Date(entry.createdAt).toLocaleString('ru-RU')}</time></p>)}</div>
     </section>
+
+    <UnifiedGuildExpansion character={character} guildId={guild.id} onCharacter={onCharacter} onRefresh={onRefresh} />
 
     {guild.role.permissions.invite && <section className="u-panel"><p className="eyebrow">Новый участник получает бонусы постепенно</p><h2>Приглашение</h2><form className="u-inline-form compact" onSubmit={(event) => { event.preventDefault(); void run(async () => { const result = await inviteOnlinePlayer(invitee); setMessage(`Приглашение отправлено: ${result.invite.inviteeName}.`); setInvitee('') }) }}><label>Логин<input onChange={(event) => setInvitee(event.target.value)} value={invitee} /></label><button disabled={busy || invitee.trim().length < 3} type="submit">Пригласить</button></form></section>}
 
