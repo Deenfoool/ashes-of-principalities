@@ -1,4 +1,5 @@
 import { sessionTokenFromRequest } from './api.mjs'
+import { installGuildExpansionFixes } from './guild-expansion-fixes.mjs'
 import { StoreError } from './store.mjs'
 
 const MAX_BODY = 32 * 1024
@@ -32,6 +33,7 @@ function requireUser(store, request) {
 }
 
 export function createGuildExpansionApiHandler(store, expansion) {
+  installGuildExpansionFixes(expansion)
   return async function handleGuildExpansionApi(request, response) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     if (!url.pathname.startsWith('/api/guilds/expansion')
@@ -64,6 +66,11 @@ export function createGuildExpansionApiHandler(store, expansion) {
 
       if (request.method === 'POST' && url.pathname === '/api/guilds/raid/prepare') {
         sendJson(response, 200, expansion.prepareRaid(user.id, await readJson(request)))
+        return true
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/guilds/raid/cancel') {
+        sendJson(response, 200, expansion.cancelRaid(user.id, await readJson(request)))
         return true
       }
 
