@@ -14,6 +14,7 @@ import { EquipmentStore } from './equipment-store.mjs'
 import { createGuildExpansionApiHandler } from './guild-expansion-api.mjs'
 import { GuildExpansionStore } from './guild-expansion-store.mjs'
 import { installGuildV014Migrations } from './guild-v014-migrations.mjs'
+import { installLegacyStoryFixes } from './legacy-story-fixes.mjs'
 import { backfillRegionalMaterials } from './marsh-backfill.mjs'
 import { installMarshCrafting } from './marsh-crafting.mjs'
 import { installMarshMigrations } from './marsh-migrations.mjs'
@@ -70,6 +71,7 @@ const marshCrafting = installMarshCrafting(store, players, crafting)
 backfillRegionalMaterials(store.db, marshCrafting)
 installV013Migrations(store.db)
 installGuildV014Migrations(store.db)
+installLegacyStoryFixes(store.db)
 const equipment = new EquipmentStore(store, players, survival, artifacts, crafting)
 installEquipmentPresentation(store.db, artifacts, equipment)
 const guildExpansion = new GuildExpansionStore(store, players)
