@@ -14,6 +14,7 @@ export function installV013Runtime(db) {
     DROP TRIGGER IF EXISTS trg_v013_craft_reinforce;
     DROP TRIGGER IF EXISTS trg_v013_craft_reforge_good;
     DROP TRIGGER IF EXISTS trg_v013_craft_reforge_masterwork;
+    DROP TRIGGER IF EXISTS trg_v013_boss_positional;
 
     INSERT INTO player_loadouts(user_id, slot, item_id, updated_at)
     SELECT owner_user_id, equipment_slot, id, unixepoch('subsec') * 1000
@@ -120,6 +121,13 @@ export function installV013Runtime(db) {
         durability = MIN(120, max_durability + 25), repair_count = repair_count + 1,
         updated_at = unixepoch('subsec') * 1000
       WHERE owner_user_id = NEW.user_id AND equipment_slot = 'main-hand' AND equipped = 1;
+    END;
+
+    CREATE TRIGGER trg_v013_boss_positional
+    AFTER INSERT ON player_expeditions
+    WHEN NEW.boss_id IS NOT NULL
+    BEGIN
+      UPDATE player_expeditions SET positional = 1 WHERE id = NEW.id;
     END;
 
     CREATE TRIGGER trg_v013_persist_loadout
