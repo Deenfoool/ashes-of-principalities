@@ -113,7 +113,7 @@ export default function UnifiedArtifacts({ character, onCharacter }: {
       const result = await unequipServerSlot(slot)
       onCharacter(result.character)
       await load()
-      setNotice(`Предмет «${itemName}» снят. Теперь его можно выставить на торги.`)
+      setNotice(`Предмет «${itemName}» снят. Теперь его можно использовать вне боевой раскладки.`)
     } catch (caught) { setError(errorText(caught)) }
     finally { setBusy(false) }
   }
@@ -159,7 +159,7 @@ export default function UnifiedArtifacts({ character, onCharacter }: {
       <section className="u-panel"><p className="eyebrow">Снаряжение рода</p><h2>Личная коллекция</h2>
         {snapshot.owned.length === 0 ? <p className="u-empty">У рода пока нет уникальных вещей.</p> : <div className="a-owned-list">{snapshot.owned.map((item) => <article key={item.id}>
           <div><strong>{item.name} · {item.serial}</strong><ArtifactFacts item={item} /><small>Мастер: {item.makerName ?? 'неизвестен'} · {originNames[item.originType] ?? item.originType}{item.equipped ? ' · экипировано' : ''}</small></div>
-          {!item.tradable ? <span className="a-bound">Связано с родом</span> : item.equipped && item.equipmentSlot ? <button disabled={busy || !snapshot.safe} onClick={() => void removeEquipment(item.equipmentSlot!, item.name)} type="button">Снять</button> : <div className="a-sell"><input aria-label={`Цена ${item.name}`} max={100000} min={1} onChange={(event) => setPrices((current) => ({ ...current, [item.id]: Math.max(1, Math.min(100000, Number(event.target.value) || 1)) }))} type="number" value={prices[item.id] ?? 10} /><button disabled={busy || !snapshot.safe} onClick={() => void apply(() => listArtifact(item.id, prices[item.id] ?? 10), () => `${item.name} выставлен на торги.`)} type="button">Выставить</button></div>}
+          {item.equipped && item.equipmentSlot ? <button disabled={busy || !snapshot.safe} onClick={() => void removeEquipment(item.equipmentSlot!, item.name)} type="button">Снять</button> : !item.tradable ? <span className="a-bound">Связано с родом</span> : <div className="a-sell"><input aria-label={`Цена ${item.name}`} max={100000} min={1} onChange={(event) => setPrices((current) => ({ ...current, [item.id]: Math.max(1, Math.min(100000, Number(event.target.value) || 1)) }))} type="number" value={prices[item.id] ?? 10} /><button disabled={busy || !snapshot.safe} onClick={() => void apply(() => listArtifact(item.id, prices[item.id] ?? 10), () => `${item.name} выставлен на торги.`)} type="button">Выставить</button></div>}
         </article>)}</div>}
       </section>
       <section className="u-panel"><p className="eyebrow">Возврат только до продажи</p><h2>Мои объявления</h2>
