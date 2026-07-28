@@ -123,13 +123,6 @@ export function installV013Runtime(db) {
       WHERE owner_user_id = NEW.user_id AND equipment_slot = 'main-hand' AND equipped = 1;
     END;
 
-    CREATE TRIGGER trg_v013_boss_positional
-    AFTER INSERT ON player_expeditions
-    WHEN NEW.boss_id IS NOT NULL
-    BEGIN
-      UPDATE player_expeditions SET positional = 1 WHERE id = NEW.id;
-    END;
-
     CREATE TRIGGER trg_v013_persist_loadout
     AFTER INSERT ON player_action_receipts
     WHEN NEW.action LIKE 'equip:%'
