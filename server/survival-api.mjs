@@ -38,6 +38,7 @@ export function createSurvivalApiHandler(store, survival) {
   return async function handleSurvivalApi(request, response) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     const isRoute = url.pathname.startsWith('/api/player/items/')
+      || url.pathname.startsWith('/api/player/equipment/')
       || url.pathname.startsWith('/api/player/injuries/')
       || (request.method === 'POST' && url.pathname === '/api/guilds')
     if (!isRoute) return false
@@ -56,6 +57,13 @@ export function createSurvivalApiHandler(store, survival) {
       if (request.method === 'POST' && equipMatch) {
         const body = await readJson(request)
         sendJson(response, 200, survival.equipItem(user.id, decodeURIComponent(equipMatch[1]), body))
+        return true
+      }
+
+      const unequipMatch = url.pathname.match(/^\/api\/player\/equipment\/([^/]+)\/unequip$/)
+      if (request.method === 'POST' && unequipMatch) {
+        const body = await readJson(request)
+        sendJson(response, 200, survival.unequipSlot(user.id, decodeURIComponent(unequipMatch[1]), body))
         return true
       }
 
