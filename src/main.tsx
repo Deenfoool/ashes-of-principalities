@@ -14,6 +14,7 @@ import './artifact-v010.css'
 import './region-v011.css'
 import './marsh-v012.css'
 import './combat-v013.css'
+import './guild-v014.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
