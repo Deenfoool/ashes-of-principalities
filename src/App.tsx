@@ -23,7 +23,6 @@ import {
   PlayerApiError,
   QueuedPlayerAction,
   startServerExpedition,
-  useExpeditionTactic,
 } from './online-player'
 import type { CombatAction, ContractRotation, ExpeditionTactic, OnlineProfession } from './online-player'
 import { chooseMarshStory, flushMarshStoryActionQueue, getMarshStory } from './online-marsh-story'
@@ -40,7 +39,7 @@ import {
   treatServerInjury,
 } from './online-survival'
 import type { EquipmentSlot, SurvivalCharacter, SurvivalItem } from './online-survival'
-import { getRegionalBosses, startSaltBellWarden } from './online-v013'
+import { getRegionalBosses, startSaltBellWarden, useTargetedExpeditionTactic } from './online-v013'
 import type { RegionalBoss } from './online-v013'
 
 type View = 'journey' | 'character' | 'crafting' | 'market' | 'guild' | 'chat' | 'account'
@@ -293,7 +292,7 @@ export default function App() {
         onMarshChoice={(id) => void chooseSecondChapter(id)}
         onStart={(id) => void applyGame(() => startServerExpedition(id))}
         onStartBoss={() => void applyGame(() => startSaltBellWarden())}
-        onTactic={(tactic: ExpeditionTactic) => { const run = character?.activeExpedition; if (run) void applyGame(() => useExpeditionTactic(run.id, tactic)) }}
+        onTactic={(tactic: ExpeditionTactic, targetId?: string) => { const run = character?.activeExpedition; if (run) void applyGame(() => useTargetedExpeditionTactic(run.id, tactic, targetId)) }}
         rotation={rotation}
         story={story}
       />}
