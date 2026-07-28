@@ -88,14 +88,29 @@ function setup() {
   return db
 }
 
-test('runtime restores three slots and removes legacy triggers', () => {
+test('runtime restores three slots and remains safe across repeated server starts', () => {
   const db = setup()
   try {
     installV013Runtime(db)
+    installV013Runtime(db)
     const equipped = db.prepare("SELECT id FROM unique_items WHERE owner_user_id = 'user-1' AND equipped = 1 ORDER BY equipment_slot").all()
     const oldTriggers = db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_unique_%'").get()
+    const newTriggers = db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_v013_%'").get()
     assert.deepEqual(equipped.map((row) => row.id), ['body', 'charm', 'hand'])
     assert.equal(Number(oldTriggers.count), 0)
+    assert.equal(Number(newTriggers.count), 6)
+  } finally { db.close() }
+})
+
+test('first upgrade captures an equipped main hand even when old loadout is missing', () => {
+  const db = setup()
+  try {
+    db.prepare("DELETE FROM player_loadouts WHERE slot = 'main-hand'").run()
+    installV013Runtime(db)
+    const hand = db.prepare("SELECT equipped FROM unique_items WHERE id = 'hand'").get()
+    const loadout = db.prepare("SELECT item_id FROM player_loadouts WHERE user_id = 'user-1' AND slot = 'main-hand'").get()
+    assert.equal(Number(hand.equipped), 1)
+    assert.equal(loadout.item_id, 'hand')
   } finally { db.close() }
 })
 
