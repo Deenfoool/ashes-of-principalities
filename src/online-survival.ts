@@ -99,6 +99,9 @@ export const repairServerItem = (itemId: string) =>
 export const equipServerItem = (itemId: string) =>
   post<{ character: SurvivalCharacter }>(`/api/player/items/${encodeURIComponent(itemId)}/equip`)
 
+export const unequipServerSlot = (slot: EquipmentSlot) =>
+  post<{ character: SurvivalCharacter; slot: EquipmentSlot }>(`/api/player/equipment/${encodeURIComponent(slot)}/unequip`)
+
 export const treatServerInjury = (injuryId: string) =>
   post<{ character: SurvivalCharacter; cost: number }>(`/api/player/injuries/${encodeURIComponent(injuryId)}/treat`)
 
