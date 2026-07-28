@@ -14,6 +14,17 @@ const REQUIREMENTS = {
 export function installGuildExpansionFixes(expansion) {
   guildResourceDefinitions['ash-crown-fragment'] = 'Осколок пепельного венца'
 
+  expansion.expansionSnapshot = (userId) => {
+    const role = expansion.requireRole(userId)
+    expansion.checkAutomaticTransfer(role.guild_id)
+    const leadership = expansion.leadershipSnapshot(userId)
+    return {
+      resources: expansion.resourceSnapshot(userId),
+      leadership,
+      raid: expansion.raidSnapshot(userId),
+    }
+  }
+
   const originalFinishVictory = expansion.finishRaidVictory.bind(expansion)
   expansion.finishRaidVictory = (guildId, project, now) => {
     expansion.db.prepare(`
