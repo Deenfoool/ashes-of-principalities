@@ -54,6 +54,11 @@ function setup() {
       quantity INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY(user_id, item_id)
     ) STRICT;
+    CREATE TABLE player_expeditions (
+      id TEXT PRIMARY KEY,
+      boss_id TEXT,
+      positional INTEGER NOT NULL DEFAULT 0
+    ) STRICT;
     INSERT INTO player_characters(user_id, generation) VALUES ('user-1', 2);
   `)
   const insertItem = db.prepare(`
@@ -98,7 +103,7 @@ test('runtime restores three slots and remains safe across repeated server start
     const newTriggers = db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_v013_%'").get()
     assert.deepEqual(equipped.map((row) => row.id), ['body', 'charm', 'hand'])
     assert.equal(Number(oldTriggers.count), 0)
-    assert.equal(Number(newTriggers.count), 7)
+    assert.equal(Number(newTriggers.count), 8)
   } finally { db.close() }
 })
 
@@ -157,5 +162,15 @@ test('new heir starter replaces main hand without unequipping inherited armor an
     assert.equal(loadout.body, 'body')
     assert.equal(loadout.charm, 'charm')
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM player_inventory WHERE user_id = 'user-1'").get().count, 0)
+  } finally { db.close() }
+})
+
+test('boss insertion is forced into positional combat', () => {
+  const db = setup()
+  try {
+    installV013Runtime(db)
+    db.prepare("INSERT INTO player_expeditions(id, boss_id, positional) VALUES ('boss-run', 'salt-bell-warden', 0)").run()
+    const row = db.prepare("SELECT positional FROM player_expeditions WHERE id = 'boss-run'").get()
+    assert.equal(Number(row.positional), 1)
   } finally { db.close() }
 })
