@@ -9,6 +9,8 @@ import { CommissionStore } from './commission-store.mjs'
 import { createCraftingApiHandler } from './crafting-api.mjs'
 import { installCraftingMigrations } from './crafting-migrations.mjs'
 import { CraftingStore } from './crafting-store.mjs'
+import { installEquipmentPresentation } from './equipment-presentation.mjs'
+import { EquipmentStore } from './equipment-store.mjs'
 import { backfillRegionalMaterials } from './marsh-backfill.mjs'
 import { installMarshCrafting } from './marsh-crafting.mjs'
 import { installMarshMigrations } from './marsh-migrations.mjs'
@@ -21,6 +23,7 @@ import { MarketStore } from './market-store.mjs'
 import { createPlayerApiHandler } from './player-api.mjs'
 import { installRegionFixes } from './region-fixes.mjs'
 import { RegionStore } from './region-store.mjs'
+import { SquadCombatStore } from './squad-combat-store.mjs'
 import { createStoryApiHandler } from './story-api.mjs'
 import { createSurvivalApiHandler } from './survival-api.mjs'
 import { createUniqueItemApiHandler } from './unique-item-api.mjs'
@@ -30,6 +33,9 @@ import { PlayerStore } from './player-store.mjs'
 import { StoryStore } from './story-store.mjs'
 import { installSurvivalRewards } from './survival-rewards.mjs'
 import { SurvivalStore } from './survival-store.mjs'
+import { createV013ApiHandler } from './v013-api.mjs'
+import { installV013CombatFixes } from './v013-fixes.mjs'
+import { installV013Migrations } from './v013-migrations.mjs'
 import { canReceive, createChatMessage, parsePacket, visibleHistory } from './protocol.mjs'
 import { GameStore } from './store.mjs'
 
@@ -59,8 +65,14 @@ installMarshBalanceMigrations(store.db)
 const marshSystem = new MarshSystem(store, players)
 const marshCrafting = installMarshCrafting(store, players, crafting)
 backfillRegionalMaterials(store.db, marshCrafting)
+installV013Migrations(store.db)
+const equipment = new EquipmentStore(store, players, survival, artifacts, crafting)
+installEquipmentPresentation(store.db, artifacts, equipment)
 const marshStories = new MarshStoryStore(store, players, stories, regions)
+const combat = new SquadCombatStore(store, players, regions, equipment, marshSystem, marshCrafting)
+installV013CombatFixes(combat)
 const commissions = new CommissionStore(store, players, market)
+const handleV013Api = createV013ApiHandler(store, combat)
 const handleUniqueItemApi = createUniqueItemApiHandler(store, artifacts)
 const handleCommissionApi = createCommissionApiHandler(store, commissions)
 const handleMarketApi = createMarketApiHandler(store, market)
@@ -160,6 +172,7 @@ async function serveStatic(request, response) {
 }
 
 const server = createServer(async (request, response) => {
+  if (await handleV013Api(request, response)) return
   if (await handleUniqueItemApi(request, response)) return
   if (await handleCommissionApi(request, response)) return
   if (await handleMarketApi(request, response)) return
@@ -250,5 +263,5 @@ process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ashes server v0.12 listening on http://0.0.0.0:${port}`)
+  console.log(`Ashes server v0.13 listening on http://0.0.0.0:${port}`)
 })

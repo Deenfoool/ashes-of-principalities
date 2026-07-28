@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ashes-shell-v9'
+const CACHE_NAME = 'ashes-shell-v10'
 const APP_SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/maskable-icon.svg']
 
 self.addEventListener('install', (event) => {

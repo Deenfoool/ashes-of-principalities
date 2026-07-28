@@ -23,9 +23,8 @@ import {
   PlayerApiError,
   QueuedPlayerAction,
   startServerExpedition,
-  useExpeditionTactic,
 } from './online-player'
-import type { ContractRotation, ExpeditionTactic, OnlineProfession } from './online-player'
+import type { CombatAction, ContractRotation, ExpeditionTactic, OnlineProfession } from './online-player'
 import { chooseMarshStory, flushMarshStoryActionQueue, getMarshStory } from './online-marsh-story'
 import type { MarshStory } from './online-marsh-story'
 import {
@@ -39,26 +38,25 @@ import {
   repairServerItem,
   treatServerInjury,
 } from './online-survival'
-import type { SurvivalCharacter, SurvivalItem } from './online-survival'
+import type { EquipmentSlot, SurvivalCharacter, SurvivalItem } from './online-survival'
+import { getRegionalBosses, startSaltBellWarden, useTargetedExpeditionTactic } from './online-v013'
+import type { RegionalBoss } from './online-v013'
 
 type View = 'journey' | 'character' | 'crafting' | 'market' | 'guild' | 'chat' | 'account'
 
 const EMPTY_ROTATION: ContractRotation = { contracts: [], regions: [], rotationEndsAt: null }
 
 const professionNames: Record<OnlineProfession, string> = {
-  blacksmith: 'Кузнец',
-  herbalist: 'Травник',
-  hunter: 'Охотник',
-  scribe: 'Писарь',
-  carter: 'Возчик',
-  wanderer: 'Странник',
+  blacksmith: 'Кузнец', herbalist: 'Травник', hunter: 'Охотник',
+  scribe: 'Писарь', carter: 'Возчик', wanderer: 'Странник',
 }
 
 const qualityNames: Record<string, string> = {
-  worn: 'изношенное',
-  common: 'обычное',
-  good: 'добротное',
-  masterwork: 'мастерское',
+  worn: 'изношенное', common: 'обычное', good: 'добротное', masterwork: 'мастерское',
+}
+
+const slotNames: Record<EquipmentSlot, string> = {
+  'main-hand': 'Основная рука', body: 'Броня', charm: 'Оберег',
 }
 
 function describeError(error: unknown) {
@@ -86,8 +84,8 @@ function GuestPortal({ onAuthenticated }: { onAuthenticated: () => Promise<void>
     <section className="u-gate-copy">
       <p className="eyebrow">Онлайн PWA RPG-рогалик</p>
       <h1>Пепел Княжеств</h1>
-      <p>Две серверные главы, ремёсла, позиционный бой и решения, которые переживают героя.</p>
-      <div className="u-gate-facts"><span>2 сюжетные главы</span><span>6 ремёсел</span><span>Рынок игроков</span><span>Смерть и наследники</span></div>
+      <p>Две серверные главы, групповая тактика, ремёсла и решения, которые переживают героя.</p>
+      <div className="u-gate-facts"><span>3 слота экипировки</span><span>Бои с отрядами</span><span>Региональный босс</span><span>Смерть и наследники</span></div>
       <button className="u-secondary" onClick={() => setDemo(true)} type="button">Открыть гостевое демо</button>
     </section>
     <section className="u-auth-card">
@@ -116,14 +114,27 @@ function GuestPortal({ onAuthenticated }: { onAuthenticated: () => Promise<void>
   </main>
 }
 
+function equipmentFacts(item: SurvivalItem) {
+  const facts: string[] = []
+  if ((item.armor ?? 0) > 0) facts.push(`броня ${item.armor}`)
+  if ((item.zoneResistance ?? 0) > 0) facts.push(`контроль −${item.zoneResistance}`)
+  if ((item.movementDiscount ?? 0) > 0) facts.push(`движение −${item.movementDiscount}`)
+  if ((item.hexResistance ?? 0) > 0) facts.push(`порча −${item.hexResistance}`)
+  if ((item.elevationBonus ?? 0) > 0) facts.push(`высота +${item.elevationBonus}`)
+  return facts
+}
+
 function ItemCard({ item, busy, onRepair, onEquip }: {
   item: SurvivalItem
   busy: boolean
   onRepair: () => void
   onEquip: () => void
 }) {
+  const facts = equipmentFacts(item)
   return <article className={`u-item ${item.equipped ? 'equipped' : ''} ${item.broken ? 'broken' : ''}`}>
     <div><strong>{item.name}</strong><span>{qualityNames[item.quality] ?? item.quality}{item.quantity > 1 ? ` · ${item.quantity} шт.` : ''}</span></div>
+    {item.equipmentSlot && <small>{slotNames[item.equipmentSlot]}</small>}
+    {facts.length > 0 && <div className="v13-item-stats">{facts.map((fact) => <span key={fact}>{fact}</span>)}</div>}
     {item.maxDurability > 0 ? <>
       <Meter label="Прочность" value={item.durability} max={item.maxDurability} />
       <div className="u-item-actions"><button disabled={busy || item.equipped} onClick={onEquip} type="button">{item.equipped ? 'Экипировано' : 'Экипировать'}</button><button disabled={busy || item.durability >= item.maxDurability} onClick={onRepair} type="button">Ремонт</button></div>
@@ -140,6 +151,14 @@ function injuryEffect(kind: string, severity: number) {
   return 'Травма влияет на выносливость героя.'
 }
 
+function LoadoutSlot({ slot, item }: { slot: EquipmentSlot; item: SurvivalItem | null | undefined }) {
+  return <article className={`v13-loadout-slot ${item ? 'filled' : ''}`}>
+    <span>{slotNames[slot]}</span>
+    <strong>{item?.name ?? 'Пусто'}</strong>
+    {item ? <><small>{qualityNames[item.quality] ?? item.quality}</small>{item.maxDurability > 0 && <small>{item.durability}/{item.maxDurability} прочности</small>}</> : <small>Выбери подходящий предмет ниже</small>}
+  </article>
+}
+
 function CharacterView({ character, story, marshStory, busy, onRepair, onEquip, onTreat }: {
   character: SurvivalCharacter
   story: ServerStory | null
@@ -152,7 +171,11 @@ function CharacterView({ character, story, marshStory, busy, onRepair, onEquip, 
   return <div className="u-stack">
     <section className="u-panel">
       <header className="u-section-head"><div><p className="eyebrow">Поколение {character.generation}</p><h2>{character.name}</h2><span>{professionNames[character.profession]} · уровень {character.level}</span></div><span className={character.alive ? 'u-alive' : 'u-dead'}>{character.alive ? 'Жив' : 'Погиб'}</span></header>
-      <div className="u-stat-grid"><Meter label="Здоровье" value={character.health} max={character.maxHealth} /><Meter label="Силы" value={character.stamina} max={character.maxStamina} /><Meter label="Опыт" value={character.experience} max={character.experienceToNext} /><article><span>Монеты</span><strong>{character.coins}</strong></article><article><span>Чутьё</span><strong>{character.insight}</strong></article><article><span>Репутация</span><strong>{character.reputation}</strong></article><article><span>Слава рода</span><strong>{character.legacyGlory}</strong></article><article><span>Погибших</span><strong>{character.deaths}</strong></article></div>
+      <div className="u-stat-grid"><Meter label="Здоровье" value={character.health} max={character.maxHealth} /><Meter label="Силы" value={character.stamina} max={character.maxStamina} /><Meter label="Опыт" value={character.experience} max={character.experienceToNext} /><article><span>Монеты</span><strong>{character.coins}</strong></article><article><span>Чутьё</span><strong>{character.insight}</strong></article><article><span>Репутация</span><strong>{character.reputation}</strong></article><article><span>Слава рода</span><strong>{character.legacyGlory}</strong></article><article><span>Броня</span><strong>{character.armorRating ?? 0}</strong></article></div>
+    </section>
+    <section className="u-panel">
+      <p className="eyebrow">Три независимых слота</p><h2>Боевая раскладка</h2>
+      <div className="v13-loadout-grid"><LoadoutSlot item={character.equipment?.mainHand ?? character.equippedItem} slot="main-hand" /><LoadoutSlot item={character.equipment?.body} slot="body" /><LoadoutSlot item={character.equipment?.charm} slot="charm" /></div>
     </section>
     <section className="u-panel">
       <p className="eyebrow">Покой теперь имеет значение</p><h2>Травмы и естественное заживление</h2>
@@ -170,6 +193,7 @@ export default function App() {
   const [story, setStory] = useState<ServerStory | null>(null)
   const [marshStory, setMarshStory] = useState<MarshStory | null>(null)
   const [rotation, setRotation] = useState<ContractRotation>(EMPTY_ROTATION)
+  const [boss, setBoss] = useState<RegionalBoss | null>(null)
   const [view, setView] = useState<View>('journey')
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -178,19 +202,18 @@ export default function App() {
   const refreshAll = useCallback(async () => {
     try {
       const nextAccount = await fetchOnlineSnapshot()
-      const [game, available, marsh] = await Promise.all([getServerStory(), getServerContracts(), getMarshStory()])
+      const [game, available, marsh, bossSnapshot] = await Promise.all([
+        getServerStory(), getServerContracts(), getMarshStory(), getRegionalBosses(),
+      ])
       setAccount(nextAccount)
       setCharacter(game.character as SurvivalCharacter | null)
       setStory(game.story)
       setRotation(available)
       setMarshStory(marsh.marshStory)
+      setBoss(bossSnapshot.bosses[0] ?? null)
     } catch (error) {
       if ((error instanceof OnlineError || error instanceof PlayerApiError) && error.status === 401) {
-        setAccount(null)
-        setCharacter(null)
-        setStory(null)
-        setMarshStory(null)
-        setRotation(EMPTY_ROTATION)
+        setAccount(null); setCharacter(null); setStory(null); setMarshStory(null); setRotation(EMPTY_ROTATION); setBoss(null)
       } else setNotice(describeError(error))
     } finally { setReady(true) }
   }, [])
@@ -198,13 +221,8 @@ export default function App() {
   useEffect(() => { void refreshAll() }, [refreshAll])
   useEffect(() => {
     const sync = async () => {
-      const completed = (await flushPlayerActionQueue())
-        + (await flushStoryActionQueue())
-        + (await flushMarshStoryActionQueue())
-      if (completed > 0) {
-        setNotice(`Синхронизировано действий: ${completed}.`)
-        await refreshAll()
-      }
+      const completed = (await flushPlayerActionQueue()) + (await flushStoryActionQueue()) + (await flushMarshStoryActionQueue())
+      if (completed > 0) { setNotice(`Синхронизировано действий: ${completed}.`); await refreshAll() }
     }
     window.addEventListener('online', sync)
     void sync()
@@ -212,37 +230,23 @@ export default function App() {
   }, [refreshAll])
 
   const applyGame = async (operation: () => Promise<{ character: unknown }>) => {
-    setBusy(true)
-    setNotice('')
-    try {
-      const result = await operation()
-      setCharacter(result.character as SurvivalCharacter)
-      await refreshAll()
-    } catch (error) { setNotice(describeError(error)) }
+    setBusy(true); setNotice('')
+    try { const result = await operation(); setCharacter(result.character as SurvivalCharacter); await refreshAll() }
+    catch (error) { setNotice(describeError(error)) }
     finally { setBusy(false) }
   }
 
   const chooseFirstChapter = async (choiceId: string) => {
-    setBusy(true)
-    setNotice('')
-    try {
-      const result = await chooseServerStory(choiceId)
-      setCharacter(result.character as SurvivalCharacter | null)
-      setStory(result.story)
-      await refreshAll()
-    } catch (error) { setNotice(describeError(error)) }
+    setBusy(true); setNotice('')
+    try { const result = await chooseServerStory(choiceId); setCharacter(result.character as SurvivalCharacter | null); setStory(result.story); await refreshAll() }
+    catch (error) { setNotice(describeError(error)) }
     finally { setBusy(false) }
   }
 
   const chooseSecondChapter = async (choiceId: string) => {
-    setBusy(true)
-    setNotice('')
-    try {
-      const result = await chooseMarshStory(choiceId)
-      setCharacter(result.character)
-      setMarshStory(result.marshStory)
-      await refreshAll()
-    } catch (error) { setNotice(describeError(error)) }
+    setBusy(true); setNotice('')
+    try { const result = await chooseMarshStory(choiceId); setCharacter(result.character); setMarshStory(result.marshStory); await refreshAll() }
+    catch (error) { setNotice(describeError(error)) }
     finally { setBusy(false) }
   }
 
@@ -272,21 +276,23 @@ export default function App() {
     </header>
     <aside className="u-sidebar">
       <nav>{nav.map(([id, label]) => <button className={view === id ? 'active' : ''} key={id} onClick={() => setView(id)} type="button">{label}</button>)}</nav>
-      {character && <div className="u-side-stats"><Meter label="Здоровье" value={character.health} max={character.maxHealth} /><Meter label="Силы" value={character.stamina} max={character.maxStamina} /><div><span>Инструмент</span><strong>{character.equippedItem?.name ?? 'нет'}</strong><small>{character.equippedItem?.maxDurability ? `${character.equippedItem.durability}/${character.equippedItem.maxDurability}` : ''}</small></div>{character.injuries.length > 0 && <div className="danger"><span>Травмы</span><strong>{character.injuries.length}</strong></div>}</div>}
+      {character && <div className="u-side-stats"><Meter label="Здоровье" value={character.health} max={character.maxHealth} /><Meter label="Силы" value={character.stamina} max={character.maxStamina} /><div><span>Основная рука</span><strong>{character.equipment?.mainHand?.name ?? character.equippedItem?.name ?? 'нет'}</strong></div><div><span>Броня</span><strong>{character.armorRating ?? 0}</strong><small>{character.equipment?.body?.name ?? 'нет доспеха'}</small></div>{character.injuries.length > 0 && <div className="danger"><span>Травмы</span><strong>{character.injuries.length}</strong></div>}</div>}
     </aside>
     <main className="u-main">
       {notice && <p className="u-notice">{notice}</p>}
       {view === 'journey' && <UnifiedJourney
+        boss={boss}
         busy={busy}
         character={character}
         marshStory={marshStory}
         onChoice={(id) => void chooseFirstChapter(id)}
-        onCombat={(action) => { const run = character?.activeExpedition; if (run) void applyGame(() => actInServerExpedition(run.id, action)) }}
+        onCombat={(action: CombatAction, targetId?: string) => { const run = character?.activeExpedition; if (run) void applyGame(() => actInServerExpedition(run.id, action, targetId)) }}
         onCreate={(name, profession) => void applyGame(() => createServerCharacter(name, profession))}
         onHeir={(name, profession) => void applyGame(() => createServerHeir(name, profession))}
         onMarshChoice={(id) => void chooseSecondChapter(id)}
         onStart={(id) => void applyGame(() => startServerExpedition(id))}
-        onTactic={(tactic: ExpeditionTactic) => { const run = character?.activeExpedition; if (run) void applyGame(() => useExpeditionTactic(run.id, tactic)) }}
+        onStartBoss={() => void applyGame(() => startSaltBellWarden())}
+        onTactic={(tactic: ExpeditionTactic, targetId?: string) => { const run = character?.activeExpedition; if (run) void applyGame(() => useTargetedExpeditionTactic(run.id, tactic, targetId)) }}
         rotation={rotation}
         story={story}
       />}
@@ -297,7 +303,7 @@ export default function App() {
       {view === 'market' && <UnifiedMarket character={character} onCharacter={setCharacter} />}
       {view === 'guild' && <UnifiedGuild character={character} onCharacter={setCharacter} onRefresh={refreshAll} snapshot={account} />}
       {view === 'chat' && <UnifiedChat author={account.user.displayName} guildId={account.guild?.id ?? null} />}
-      {view === 'account' && <section className="u-panel"><p className="eyebrow">Серверная личность</p><h2>{account.user.displayName}</h2><p>@{account.user.username}</p><div className="u-account-facts"><span>Создан: {new Date(account.user.createdAt).toLocaleDateString('ru-RU')}</span><span>{account.guild ? `Гильдия: [${account.guild.tag}] ${account.guild.name}` : 'Гильдии нет'}</span><span>{character ? `Поколение героя: ${character.generation}` : 'Герой ещё не создан'}</span><span>{marshStory?.chapterComplete ? `Итог топей: ${marshStory.ending}` : 'Вторая глава не завершена'}</span></div><button className="u-danger-button" onClick={() => void logoutOnline().then(() => { setAccount(null); setCharacter(null); setStory(null); setMarshStory(null); setRotation(EMPTY_ROTATION); setView('journey') })} type="button">Выйти из аккаунта</button></section>}
+      {view === 'account' && <section className="u-panel"><p className="eyebrow">Серверная личность</p><h2>{account.user.displayName}</h2><p>@{account.user.username}</p><div className="u-account-facts"><span>Создан: {new Date(account.user.createdAt).toLocaleDateString('ru-RU')}</span><span>{account.guild ? `Гильдия: [${account.guild.tag}] ${account.guild.name}` : 'Гильдии нет'}</span><span>{character ? `Поколение героя: ${character.generation}` : 'Герой ещё не создан'}</span><span>{boss ? `Побед над Глухобором: ${boss.victories}` : 'Босс ещё не открыт'}</span></div><button className="u-danger-button" onClick={() => void logoutOnline().then(() => { setAccount(null); setCharacter(null); setStory(null); setMarshStory(null); setRotation(EMPTY_ROTATION); setBoss(null); setView('journey') })} type="button">Выйти из аккаунта</button></section>}
     </main>
     <footer className="u-mobile-nav">{nav.map(([id, label]) => <button className={view === id ? 'active' : ''} key={id} onClick={() => setView(id)} type="button">{label}</button>)}</footer>
   </div>

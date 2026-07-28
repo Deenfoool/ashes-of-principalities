@@ -3,6 +3,7 @@ import type { ServerCharacter } from './online-player'
 import { PlayerApiError } from './online-player'
 
 export type ItemQuality = 'worn' | 'common' | 'good' | 'masterwork'
+export type EquipmentSlot = 'main-hand' | 'body' | 'charm'
 
 export interface SurvivalItem {
   id: string
@@ -26,6 +27,12 @@ export interface SurvivalItem {
   tradable?: boolean
   createdAt?: number
   updatedAt?: number
+  equipmentSlot?: EquipmentSlot
+  armor?: number
+  zoneResistance?: number
+  movementDiscount?: number
+  hexResistance?: number
+  elevationBonus?: number
 }
 
 export interface SurvivalInjury {
@@ -45,10 +52,22 @@ export type SurvivalCharacter = Omit<ServerCharacter, 'inventory'> & {
   inventory: SurvivalItem[]
   injuries: SurvivalInjury[]
   equippedItem: SurvivalItem | null
+  equipment?: {
+    mainHand: SurvivalItem | null
+    body: SurvivalItem | null
+    charm: SurvivalItem | null
+  }
+  armorRating?: number
   combatModifiers: {
     attackStaminaPenalty: number
     fleeStaminaPenalty: number
     movementStaminaPenalty?: number
+    armorReduction?: number
+    zoneResistance?: number
+    movementDiscount?: number
+    hexResistance?: number
+    elevationBonus?: number
+    injuryResistance?: number
   }
 }
 
@@ -79,6 +98,9 @@ export const repairServerItem = (itemId: string) =>
 
 export const equipServerItem = (itemId: string) =>
   post<{ character: SurvivalCharacter }>(`/api/player/items/${encodeURIComponent(itemId)}/equip`)
+
+export const unequipServerSlot = (slot: EquipmentSlot) =>
+  post<{ character: SurvivalCharacter; slot: EquipmentSlot }>(`/api/player/equipment/${encodeURIComponent(slot)}/unequip`)
 
 export const treatServerInjury = (injuryId: string) =>
   post<{ character: SurvivalCharacter; cost: number }>(`/api/player/injuries/${encodeURIComponent(injuryId)}/treat`)

@@ -1,5 +1,5 @@
 export type OnlineProfession = 'blacksmith' | 'herbalist' | 'hunter' | 'scribe' | 'carter' | 'wanderer'
-export type CombatAction = 'attack' | 'guard' | 'prepare' | 'profession' | 'flee' | 'advance' | 'retreat'
+export type CombatAction = 'attack' | 'guard' | 'prepare' | 'profession' | 'flee' | 'advance' | 'retreat' | 'climb' | 'descend'
 export type ExpeditionTactic = 'cover' | 'trap'
 
 export interface ServerInventoryItem {
@@ -13,6 +13,21 @@ export interface ServerTactic {
   label: string
   available: boolean
   reason: string
+}
+
+export interface ServerEnemy {
+  id: string
+  key: string
+  name: string
+  role: 'brute' | 'controller' | 'ranged' | 'skirmisher' | 'boss'
+  health: number
+  maxHealth: number
+  distance: number
+  elevation: number
+  intent: 'attack' | 'heavy' | 'guard' | 'hex'
+  zonePower: number
+  status: 'active' | 'defeated'
+  defeated: boolean
 }
 
 export interface ServerExpedition {
@@ -42,6 +57,14 @@ export interface ServerExpedition {
   objective?: string | null
   enemyStyle?: 'melee' | 'ranged' | 'skirmisher'
   tactics?: ServerTactic[]
+  encounterType?: 'single' | 'group' | 'boss'
+  bossId?: string | null
+  bossPhase?: number
+  heroElevation?: number
+  maxElevation?: number
+  zoneControl?: number
+  targetEnemyId?: string | null
+  enemies?: ServerEnemy[]
 }
 
 export interface ServerCharacter {
@@ -178,7 +201,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(path, { headers: { Accept: 'application/json' } })
+  const response = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
   return parseResponse<T>(response)
 }
 
@@ -192,6 +215,7 @@ async function post<T>(
   try {
     const response = await fetch(path, {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(payload),
     })
@@ -217,6 +241,7 @@ export async function flushPlayerActionQueue() {
     try {
       const response = await fetch(operation.path, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(operation.body),
       })
@@ -243,8 +268,8 @@ export const createServerCharacter = (name: string, profession: OnlineProfession
 export const startServerExpedition = (contractId: string) =>
   post<{ character: ServerCharacter }>('/api/player/expeditions', { contractId }, { queueOnNetworkFailure: true })
 
-export const actInServerExpedition = (expeditionId: string, action: CombatAction) =>
-  post<{ character: ServerCharacter }>('/api/player/expeditions/action', { expeditionId, action }, { queueOnNetworkFailure: true })
+export const actInServerExpedition = (expeditionId: string, action: CombatAction, targetId?: string) =>
+  post<{ character: ServerCharacter }>('/api/player/expeditions/action', { expeditionId, action, targetId }, { queueOnNetworkFailure: true })
 
 export const useExpeditionTactic = (expeditionId: string, tactic: ExpeditionTactic) =>
   post<{ character: ServerCharacter }>('/api/player/expeditions/tactic', { expeditionId, tactic }, { queueOnNetworkFailure: true })
