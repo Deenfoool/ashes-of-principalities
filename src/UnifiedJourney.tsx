@@ -68,7 +68,7 @@ function CombatView({ character, story, marshStory, busy, onCombat, onTactic }: 
   marshStory: MarshStory | null
   busy: boolean
   onCombat: (action: CombatAction, targetId?: string) => void
-  onTactic: (tactic: ExpeditionTactic) => void
+  onTactic: (tactic: ExpeditionTactic, targetId?: string) => void
 }) {
   const active = character.activeExpedition!
   const living = (active.enemies ?? []).filter((enemy) => !enemy.defeated)
@@ -123,7 +123,7 @@ function CombatView({ character, story, marshStory, busy, onCombat, onTactic }: 
     })}</div>
     {active.tactics && active.tactics.length > 0 && <div className="marsh-tactics">
       <div><p className="eyebrow">Полевая подготовка</p><h3>Укрытия и ловушки</h3></div>
-      {active.tactics.map((tactic) => <button disabled={busy || !tactic.available} key={tactic.id} onClick={() => onTactic(tactic.id)} title={tactic.reason} type="button"><strong>{tactic.label}</strong><small>{tactic.reason}</small></button>)}
+      {active.tactics.map((tactic) => <button disabled={busy || !tactic.available} key={tactic.id} onClick={() => onTactic(tactic.id, grouped ? targetId : undefined)} title={tactic.reason} type="button"><strong>{tactic.label}</strong><small>{tactic.reason}</small></button>)}
     </div>}
   </section>
 }
@@ -170,7 +170,7 @@ export default function UnifiedJourney({
   onChoice: (choiceId: string) => void
   onMarshChoice: (choiceId: string) => void
   onCombat: (action: CombatAction, targetId?: string) => void
-  onTactic: (tactic: ExpeditionTactic) => void
+  onTactic: (tactic: ExpeditionTactic, targetId?: string) => void
   onStart: (contractId: string) => void
   onStartBoss: () => void
   onCreate: (name: string, profession: OnlineProfession) => void
