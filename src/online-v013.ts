@@ -1,3 +1,4 @@
+import type { ExpeditionTactic } from './online-player'
 import type { SurvivalCharacter } from './online-survival'
 import { PlayerApiError } from './online-player'
 
@@ -50,4 +51,14 @@ export async function startSaltBellWarden() {
     body: JSON.stringify({ requestId: requestId() }),
   })
   return parse<{ character: SurvivalCharacter; boss: RegionalBoss }>(response)
+}
+
+export async function useTargetedExpeditionTactic(expeditionId: string, tactic: ExpeditionTactic, targetId?: string) {
+  const response = await fetch('/api/player/expeditions/tactic', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ expeditionId, tactic, targetId, requestId: requestId() }),
+  })
+  return parse<{ character: SurvivalCharacter }>(response)
 }
