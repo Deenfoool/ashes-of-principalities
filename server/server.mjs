@@ -11,6 +11,9 @@ import { installCraftingMigrations } from './crafting-migrations.mjs'
 import { CraftingStore } from './crafting-store.mjs'
 import { installEquipmentPresentation } from './equipment-presentation.mjs'
 import { EquipmentStore } from './equipment-store.mjs'
+import { createGuildExpansionApiHandler } from './guild-expansion-api.mjs'
+import { GuildExpansionStore } from './guild-expansion-store.mjs'
+import { installGuildV014Migrations } from './guild-v014-migrations.mjs'
 import { backfillRegionalMaterials } from './marsh-backfill.mjs'
 import { installMarshCrafting } from './marsh-crafting.mjs'
 import { installMarshMigrations } from './marsh-migrations.mjs'
@@ -66,12 +69,15 @@ const marshSystem = new MarshSystem(store, players)
 const marshCrafting = installMarshCrafting(store, players, crafting)
 backfillRegionalMaterials(store.db, marshCrafting)
 installV013Migrations(store.db)
+installGuildV014Migrations(store.db)
 const equipment = new EquipmentStore(store, players, survival, artifacts, crafting)
 installEquipmentPresentation(store.db, artifacts, equipment)
+const guildExpansion = new GuildExpansionStore(store, players)
 const marshStories = new MarshStoryStore(store, players, stories, regions)
 const combat = new SquadCombatStore(store, players, regions, equipment, marshSystem, marshCrafting)
 installV013CombatFixes(combat)
 const commissions = new CommissionStore(store, players, market)
+const handleGuildExpansionApi = createGuildExpansionApiHandler(store, guildExpansion)
 const handleV013Api = createV013ApiHandler(store, combat)
 const handleUniqueItemApi = createUniqueItemApiHandler(store, artifacts)
 const handleCommissionApi = createCommissionApiHandler(store, commissions)
@@ -172,6 +178,7 @@ async function serveStatic(request, response) {
 }
 
 const server = createServer(async (request, response) => {
+  if (await handleGuildExpansionApi(request, response)) return
   if (await handleV013Api(request, response)) return
   if (await handleUniqueItemApi(request, response)) return
   if (await handleCommissionApi(request, response)) return
@@ -263,5 +270,5 @@ process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ashes server v0.13 listening on http://0.0.0.0:${port}`)
+  console.log(`Ashes server v0.14 listening on http://0.0.0.0:${port}`)
 })
