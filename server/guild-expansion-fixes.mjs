@@ -11,6 +11,12 @@ const REQUIREMENTS = {
   'white-bell-heart': 1,
 }
 
+function hasReceipt(expansion, userId, requestId) {
+  return Boolean(expansion.db.prepare(`
+    SELECT 1 FROM player_action_receipts WHERE user_id = ? AND request_id = ?
+  `).get(userId, String(requestId ?? '')))
+}
+
 export function installGuildExpansionFixes(expansion) {
   guildResourceDefinitions['ash-crown-fragment'] = 'Осколок пепельного венца'
 
@@ -23,6 +29,39 @@ export function installGuildExpansionFixes(expansion) {
       leadership,
       raid: expansion.raidSnapshot(userId),
     }
+  }
+
+  const originalJoinRaid = expansion.joinRaid.bind(expansion)
+  expansion.joinRaid = (userId, input) => {
+    if (hasReceipt(expansion, userId, input.requestId)) return originalJoinRaid(userId, input)
+    const role = expansion.requireRole(userId)
+    const existing = expansion.db.prepare(`
+      SELECT 1 FROM guild_raid_participants
+      WHERE guild_id = ? AND boss_id = ? AND user_id = ?
+    `).get(role.guild_id, BOSS_ID, userId)
+    if (existing) throw new StoreError('raid-already-joined', 'Герой уже записан в эту дружину.', 409)
+    return originalJoinRaid(userId, input)
+  }
+
+  const originalStartRaid = expansion.startRaid.bind(expansion)
+  expansion.startRaid = (userId, input) => {
+    if (hasReceipt(expansion, userId, input.requestId)) return originalStartRaid(userId, input)
+    const role = expansion.requireRole(userId)
+    const guild = expansion.db.prepare(`
+      SELECT (SELECT COUNT(*) FROM guild_members member WHERE member.guild_id = guild.id) AS member_count
+      FROM guilds guild WHERE guild.id = ?
+    `).get(role.guild_id)
+    const participantCount = Number(expansion.db.prepare(`
+      SELECT COUNT(*) AS count FROM guild_raid_participants participant
+      JOIN guild_members member
+        ON member.guild_id = participant.guild_id AND member.user_id = participant.user_id
+      WHERE participant.guild_id = ? AND participant.boss_id = ?
+    `).get(role.guild_id, BOSS_ID).count)
+    const minimum = Number(guild?.member_count ?? 0) <= 1 ? 1 : 2
+    if (participantCount < minimum) {
+      throw new StoreError('raid-party-small', `Для начала нужно действующих участников: ${minimum}. Сейчас: ${participantCount}.`, 409)
+    }
+    return originalStartRaid(userId, input)
   }
 
   const originalFinishVictory = expansion.finishRaidVictory.bind(expansion)
