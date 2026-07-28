@@ -92,6 +92,31 @@ export function installGuildV014Migrations(db) {
       CREATE INDEX idx_guild_members_activity ON guild_members(guild_id, last_active_at DESC);
       CREATE INDEX idx_guild_leadership_time ON guild_leadership_log(guild_id, created_at DESC);
       CREATE INDEX idx_guild_raid_log_time ON guild_raid_log(guild_id, boss_id, created_at DESC);
+
+      CREATE TRIGGER trg_v014_raid_actions_exhausted
+      AFTER UPDATE OF round ON guild_raid_projects
+      WHEN NEW.status = 'active' AND NEW.health > 0 AND NEW.morale > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM guild_raid_participants participant
+          WHERE participant.guild_id = NEW.guild_id
+            AND participant.boss_id = NEW.boss_id
+            AND participant.actions < 12
+        )
+      BEGIN
+        UPDATE guild_raid_projects SET status = 'failed', morale = 0,
+          ended_at = unixepoch('subsec') * 1000,
+          cooldown_until = unixepoch('subsec') * 1000 + 86400000,
+          updated_at = unixepoch('subsec') * 1000
+        WHERE guild_id = NEW.guild_id AND boss_id = NEW.boss_id;
+
+        INSERT INTO guild_raid_log(
+          id, guild_id, boss_id, user_id, event_type, message, round, created_at
+        ) VALUES (
+          lower(hex(randomblob(16))), NEW.guild_id, NEW.boss_id, NULL, 'failure',
+          'Дружина исчерпала все действия и отступила до падения боевого духа.',
+          NEW.round, unixepoch('subsec') * 1000
+        );
+      END;
     `)
   })
 }
