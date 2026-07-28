@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   actInGuildRaid,
+  cancelGuildRaidPreparation,
   depositGuildResource,
   getGuildExpansion,
   joinGuildRaid,
@@ -81,6 +82,7 @@ function RaidBoard({ raid, busy, onOperation }: {
       {!self && <button disabled={busy || !raid.permissions.canJoin} onClick={() => onOperation(joinGuildRaid)} type="button">Войти в дружину</button>}
       {self && <span className="gv14-ready-mark">Ты записан: {self.actions}/{raid.boss.maxActionsPerMember} действий доступно</span>}
       {raid.permissions.canStart && <button disabled={busy || raid.participants.length < raid.minimumParticipants} onClick={() => onOperation(startGuildRaid)} type="button">Поднять знамя и начать</button>}
+      {raid.permissions.canPrepare && <button className="u-danger" disabled={busy} onClick={() => onOperation(cancelGuildRaidPreparation)} type="button">Отменить подготовку</button>}
     </div>}
 
     {active && <div className="gv14-raid-actions">
@@ -165,7 +167,7 @@ export default function UnifiedGuildExpansion({ guildId, character, onCharacter,
         <div><strong>{resource.name}</strong><small>Доступно {resource.available} · резерв {resource.reserved}</small></div><span>{resource.quantity}</span>
         {snapshot.resources.canWithdraw && resource.available > 0 && <button disabled={busy} onClick={() => void run(() => withdrawGuildResource(resource.id, 1))} type="button">Взять 1</button>}
       </article>)}</div>
-      <div className="u-log gv14-resource-log">{snapshot.resources.log.slice(0, 12).map((entry) => <p key={entry.id}><span>{entry.playerName}</span><strong>{entry.operation === 'deposit' ? '+' : entry.operation === 'withdraw' ? '−' : '•'}{entry.quantity} {entry.itemName}</strong><time>{new Date(entry.createdAt).toLocaleString('ru-RU')}</time></p>)}</div>
+      <div className="u-log gv14-resource-log">{snapshot.resources.log.slice(0, 12).map((entry) => <p key={entry.id}><span>{entry.playerName}</span><strong>{entry.operation === 'deposit' ? '+' : entry.operation === 'withdraw' ? '−' : entry.operation === 'release' ? '↩' : '•'}{entry.quantity} {entry.itemName}</strong><time>{new Date(entry.createdAt).toLocaleString('ru-RU')}</time></p>)}</div>
     </section>
 
     <section className="u-panel">
