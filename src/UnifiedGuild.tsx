@@ -126,7 +126,7 @@ export default function UnifiedGuild({
       <div className="u-log">{log.slice(0, 12).map((entry) => <p key={entry.id}><span>{entry.playerName}</span><strong>+{entry.amount}</strong><time>{new Date(entry.createdAt).toLocaleString('ru-RU')}</time></p>)}</div>
     </section>
 
-    <UnifiedGuildExpansion character={character} guildId={guild.id} onCharacter={onCharacter} onRefresh={onRefresh} />
+    <UnifiedGuildExpansion guildId={guild.id} onCharacter={onCharacter} onRefresh={onRefresh} />
 
     {guild.role.permissions.invite && <section className="u-panel"><p className="eyebrow">Новый участник получает бонусы постепенно</p><h2>Приглашение</h2><form className="u-inline-form compact" onSubmit={(event) => { event.preventDefault(); void run(async () => { const result = await inviteOnlinePlayer(invitee); setMessage(`Приглашение отправлено: ${result.invite.inviteeName}.`); setInvitee('') }) }}><label>Логин<input onChange={(event) => setInvitee(event.target.value)} value={invitee} /></label><button disabled={busy || invitee.trim().length < 3} type="submit">Пригласить</button></form></section>}
 
