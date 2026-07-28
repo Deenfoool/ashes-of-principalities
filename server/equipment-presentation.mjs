@@ -1,6 +1,6 @@
 import { installEquipmentUnequip } from './equipment-unequip.mjs'
 
-export function installEquipmentPresentation(db, players, survival, artifacts, equipment) {
+export function installEquipmentPresentation(db, artifacts, equipment) {
   const decorate = (item) => {
     if (!item?.id) return item
     const row = db.prepare(`
@@ -25,5 +25,5 @@ export function installEquipmentPresentation(db, players, survival, artifacts, e
     ...listing,
     item: decorate(listing.item),
   }))
-  installEquipmentUnequip(db, players, survival, artifacts)
+  installEquipmentUnequip(db, equipment.players, equipment.survival, artifacts)
 }
