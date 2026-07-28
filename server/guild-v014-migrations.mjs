@@ -4,7 +4,7 @@ export function installGuildV014Migrations(db) {
   return applyMigration(db, '017_guild_resources_leadership_and_raids', () => {
     db.exec(`
       ALTER TABLE guild_members ADD COLUMN last_active_at INTEGER NOT NULL DEFAULT 0;
-      UPDATE guild_members SET last_active_at = CASE WHEN joined_at > 0 THEN joined_at ELSE unixepoch('subsec') * 1000 END
+      UPDATE guild_members SET last_active_at = unixepoch('subsec') * 1000
       WHERE last_active_at = 0;
 
       CREATE TABLE guild_resource_stock (
