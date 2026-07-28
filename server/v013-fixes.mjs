@@ -5,6 +5,16 @@ export function installV013CombatFixes(combat) {
   // same rows again before persistence would replace fresh damage with stale DB values.
   combat.activeEnemyRows = () => []
 
+  const originalDecorateRun = combat.decorateRun.bind(combat)
+  combat.decorateRun = (base, row) => {
+    const decorated = originalDecorateRun(base, row)
+    if (!decorated || !Array.isArray(decorated.enemies)) return decorated
+    const zoneControl = decorated.enemies
+      .filter((enemy) => !enemy.defeated && Number(enemy.distance) === 0)
+      .reduce((sum, enemy) => sum + Number(enemy.zonePower ?? 0), 0)
+    return { ...decorated, zoneControl }
+  }
+
   const originalActSquad = combat.actSquad.bind(combat)
   combat.actSquad = (userId, input, tacticMode = false) => {
     const requestId = String(input.requestId ?? '').trim()
