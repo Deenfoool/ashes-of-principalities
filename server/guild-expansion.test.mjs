@@ -94,6 +94,11 @@ test('prepared raid can be cancelled with resource and stamina restoration', () 
     fixture.expansion.prepareRaid(fixture.leader.id, { requestId: 'raid-prepare-cancel-v014' })
     fixture.expansion.joinRaid(fixture.leader.id, { requestId: 'raid-join-cancel-v014' })
     assert.equal(fixture.game.db.prepare('SELECT stamina FROM player_characters WHERE user_id = ?').get(fixture.leader.id).stamina, 17)
+    assert.throws(
+      () => fixture.expansion.joinRaid(fixture.leader.id, { requestId: 'raid-join-again-v014' }),
+      (error) => error.code === 'raid-already-joined' && error.status === 409,
+    )
+    assert.equal(fixture.game.db.prepare('SELECT stamina FROM player_characters WHERE user_id = ?').get(fixture.leader.id).stamina, 17)
 
     const cancelled = fixture.expansion.cancelRaid(fixture.leader.id, { requestId: 'raid-cancel-v014-0001' })
     assert.equal(cancelled.raid.boss.status, 'preparing')
@@ -167,5 +172,31 @@ test('two members defeat the shared boss and final reward cannot duplicate', () 
     for (const user of [fixture.leader, fixture.member]) {
       assert.equal(fixture.game.db.prepare("SELECT quantity FROM player_inventory WHERE user_id = ? AND item_id = 'ash-crown-scale'").get(user.id).quantity, 1)
     }
+  } finally { fixture.close() }
+})
+
+test('idle participant receives no personal raid reward', () => {
+  const fixture = setup()
+  try {
+    fixture.game.db.prepare('UPDATE guilds SET warband = 5, workshops = 5 WHERE id = ?').run(fixture.guildId)
+    fixture.game.db.prepare('UPDATE player_characters SET level = 10, max_stamina = 20, stamina = 20 WHERE user_id IN (?, ?)').run(fixture.leader.id, fixture.member.id)
+    giveRaidResources(fixture.players, fixture.leader.id)
+    depositRaidResources(fixture.expansion, fixture.leader.id)
+    fixture.expansion.prepareRaid(fixture.leader.id, { requestId: 'raid-prepare-idle-v014' })
+    fixture.expansion.joinRaid(fixture.leader.id, { requestId: 'raid-join-active-v014' })
+    fixture.expansion.joinRaid(fixture.member.id, { requestId: 'raid-join-idle-v014' })
+    fixture.expansion.startRaid(fixture.leader.id, { requestId: 'raid-start-idle-v014' })
+
+    let raid = fixture.expansion.raidSnapshot(fixture.leader.id)
+    for (let index = 0; index < 12 && raid.boss.status === 'active'; index += 1) {
+      raid = fixture.expansion.actRaid(fixture.leader.id, {
+        action: 'profession',
+        requestId: `raid-solo-action-v014-${String(index).padStart(2, '0')}`,
+      }).raid
+    }
+    assert.equal(raid.boss.status, 'won')
+    assert.equal(fixture.game.db.prepare("SELECT quantity FROM player_inventory WHERE user_id = ? AND item_id = 'ash-crown-scale'").get(fixture.leader.id).quantity, 1)
+    assert.equal(fixture.game.db.prepare("SELECT quantity FROM player_inventory WHERE user_id = ? AND item_id = 'ash-crown-scale'").get(fixture.member.id), undefined)
+    assert.equal(fixture.game.db.prepare("SELECT COUNT(*) AS count FROM guild_raid_participants WHERE guild_id = ? AND boss_id = 'ash-crowned-devourer' AND user_id = ?").get(fixture.guildId, fixture.member.id).count, 0)
   } finally { fixture.close() }
 })
