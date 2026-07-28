@@ -21,8 +21,11 @@ test('artifact listings expose equipment slot and combat properties before purch
         id: 'listing-1',
         item: { id: 'armor-1', name: 'Тростниковый ламелляр' },
       }],
+      history: () => {},
     }
     const equipment = {
+      players: {},
+      survival: {},
       statsFor: () => ({
         armor: 4,
         zoneResistance: 1,
@@ -36,5 +39,6 @@ test('artifact listings expose equipment slot and combat properties before purch
     assert.equal(listing.item.equipmentSlot, 'body')
     assert.equal(listing.item.armor, 4)
     assert.equal(listing.item.zoneResistance, 1)
+    assert.equal(typeof equipment.survival.unequipSlot, 'function')
   } finally { db.close() }
 })
