@@ -7,6 +7,7 @@ export function installV013Runtime(db) {
     DROP TRIGGER IF EXISTS trg_unique_craft_reinforce;
     DROP TRIGGER IF EXISTS trg_unique_craft_reforge_good;
     DROP TRIGGER IF EXISTS trg_unique_craft_reforge_masterwork;
+    DROP TRIGGER IF EXISTS trg_v013_starter_item;
     DROP TRIGGER IF EXISTS trg_v013_main_hand_wear;
     DROP TRIGGER IF EXISTS trg_v013_persist_loadout;
     DROP TRIGGER IF EXISTS trg_v013_craft_repair;
