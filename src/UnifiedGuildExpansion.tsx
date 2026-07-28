@@ -110,9 +110,8 @@ function RaidBoard({ raid, busy, onOperation }: {
   </section>
 }
 
-export default function UnifiedGuildExpansion({ guildId, character, onCharacter, onRefresh }: {
+export default function UnifiedGuildExpansion({ guildId, onCharacter, onRefresh }: {
   guildId: string
-  character: SurvivalCharacter | null
   onCharacter: (character: SurvivalCharacter) => void
   onRefresh: () => Promise<void>
 }) {
@@ -125,15 +124,16 @@ export default function UnifiedGuildExpansion({ guildId, character, onCharacter,
   const load = useCallback(async () => {
     const next = await getGuildExpansion()
     setSnapshot(next)
-    if (!resourceId) {
-      const first = next.resources.allowed.find((resource) => resource.owned > 0)
-      if (first) setResourceId(first.id)
+    const current = next.resources.allowed.find((resource) => resource.id === resourceId)
+    if (!current || current.owned <= 0) {
+      setResourceId(next.resources.allowed.find((resource) => resource.owned > 0)?.id ?? '')
     }
   }, [resourceId])
 
   useEffect(() => {
-    void load().catch(() => undefined)
-    const timer = window.setInterval(() => { void load().catch(() => undefined) }, 20_000)
+    const report = (error: unknown) => setMessage(error instanceof Error ? error.message : 'Не удалось загрузить общие дела гильдии.')
+    void load().catch(report)
+    const timer = window.setInterval(() => { void load().catch(report) }, 20_000)
     return () => window.clearInterval(timer)
   }, [guildId, load])
 
@@ -149,7 +149,7 @@ export default function UnifiedGuildExpansion({ guildId, character, onCharacter,
   }
 
   const depositable = useMemo(() => snapshot?.resources.allowed.filter((resource) => resource.owned > 0) ?? [], [snapshot])
-  if (!snapshot) return <section className="u-panel"><h2>Общие дела</h2><p>Летописец сверяет склад и знамёна гильдии…</p></section>
+  if (!snapshot) return <section className="u-panel"><h2>Общие дела</h2><p>{message || 'Летописец сверяет склад и знамёна гильдии…'}</p></section>
   const selected = snapshot.resources.allowed.find((resource) => resource.id === resourceId)
 
   return <div className="u-stack gv14-stack">
