@@ -1,6 +1,6 @@
 {
   "name": "Пепел Княжеств",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
   "postCreateCommand": "npm install",
   "forwardPorts": [5173, 3001],
   "portsAttributes": {
