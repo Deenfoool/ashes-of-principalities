@@ -48,9 +48,17 @@ export function installGuildExpansionFixes(expansion) {
     if (hasReceipt(expansion, userId, input.requestId)) return originalStartRaid(userId, input)
     const role = expansion.requireRole(userId)
     const guild = expansion.db.prepare(`
-      SELECT (SELECT COUNT(*) FROM guild_members member WHERE member.guild_id = g.id) AS member_count
+      SELECT g.leader_id,
+        (SELECT COUNT(*) FROM guild_members member WHERE member.guild_id = g.id) AS member_count
       FROM guilds g WHERE g.id = ?
     `).get(role.guild_id)
+    if (guild?.leader_id !== userId && Number(role.position) < 80) {
+      throw new StoreError('forbidden', 'Начать рейд может глава или заместитель.', 403)
+    }
+    const project = expansion.ensureRaidProject(role.guild_id)
+    if (project.status !== 'ready') {
+      throw new StoreError('raid-not-ready', 'Рейд ещё не подготовлен или уже начался.', 409)
+    }
     const participantCount = Number(expansion.db.prepare(`
       SELECT COUNT(*) AS count
       FROM guild_raid_participants participant
