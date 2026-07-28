@@ -12,7 +12,7 @@ export interface GuildResource {
 
 export interface GuildResourceLogEntry {
   id: string
-  operation: 'deposit' | 'withdraw' | 'reserve' | 'consume' | 'reward'
+  operation: 'deposit' | 'withdraw' | 'reserve' | 'release' | 'consume' | 'reward'
   itemId: string
   itemName: string
   quantity: number
@@ -167,6 +167,9 @@ export const transferGuildLeadership = (targetUserId: string) =>
 
 export const prepareGuildRaid = () =>
   post<{ raid: GuildRaidSnapshot; resources: GuildResourceSnapshot }>('/api/guilds/raid/prepare')
+
+export const cancelGuildRaidPreparation = () =>
+  post<{ character: SurvivalCharacter; raid: GuildRaidSnapshot; resources: GuildResourceSnapshot }>('/api/guilds/raid/cancel')
 
 export const joinGuildRaid = () =>
   post<{ character: SurvivalCharacter; raid: GuildRaidSnapshot }>('/api/guilds/raid/join')
