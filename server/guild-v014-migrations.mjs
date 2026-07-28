@@ -21,7 +21,7 @@ export function installGuildV014Migrations(db) {
         id TEXT PRIMARY KEY,
         guild_id TEXT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        operation TEXT NOT NULL CHECK(operation IN ('deposit', 'withdraw', 'reserve', 'consume', 'reward')),
+        operation TEXT NOT NULL CHECK(operation IN ('deposit', 'withdraw', 'reserve', 'release', 'consume', 'reward')),
         item_id TEXT NOT NULL,
         item_name TEXT NOT NULL,
         quantity INTEGER NOT NULL CHECK(quantity > 0),
