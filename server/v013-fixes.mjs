@@ -1,7 +1,43 @@
+import { StoreError } from './store.mjs'
+
 export function installV013CombatFixes(combat) {
-  // actSquad already owns the mutable enemy rows for the transaction. Returning
-  // database rows here would replace freshly changed health with stale values.
+  // actSquad already owns mutable enemy rows for the transaction. Reading the
+  // same rows again before persistence would replace fresh damage with stale DB values.
   combat.activeEnemyRows = () => []
+
+  const originalActSquad = combat.actSquad.bind(combat)
+  combat.actSquad = (userId, input, tacticMode = false) => {
+    const requestId = String(input.requestId ?? '').trim()
+    const targetId = String(input.targetId ?? '').slice(0, 96)
+    const action = String(input.action ?? '')
+    const expectedAction = tacticMode
+      ? `expedition:tactic:${action}`
+      : `expedition:${action}:${targetId || 'auto'}`
+    const existing = requestId
+      ? combat.db.prepare(`
+          SELECT action, result_json FROM player_action_receipts
+          WHERE user_id = ? AND request_id = ?
+        `).get(userId, requestId)
+      : null
+    if (existing) {
+      if (existing.action !== expectedAction) {
+        throw new StoreError('request-id-conflict', 'Этот идентификатор уже использован для другого действия.', 409)
+      }
+      return JSON.parse(existing.result_json)
+    }
+
+    if (!tacticMode && action === 'profession') {
+      const mainHand = combat.db.prepare(`
+        SELECT durability FROM unique_items
+        WHERE owner_user_id = ? AND equipment_slot = 'main-hand' AND equipped = 1
+        LIMIT 1
+      `).get(userId)
+      if (mainHand && Number(mainHand.durability) <= 0) {
+        throw new StoreError('tool-broken', 'Оружие или ремесленный инструмент сломан. Сначала отремонтируй его.', 409)
+      }
+    }
+    return originalActSquad(userId, input, tacticMode)
+  }
 
   const originalPhaseChange = combat.maybeChangeBossPhase.bind(combat)
   combat.maybeChangeBossPhase = (run, enemies, log) => {
