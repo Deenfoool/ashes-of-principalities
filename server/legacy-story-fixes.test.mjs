@@ -47,8 +47,8 @@ test('removes the broken trigger and makes encounter inserts work again', () => 
 
   db.prepare('INSERT INTO player_expeditions(id) VALUES (?)').run('after-fix')
   assert.deepEqual(
-    db.prepare('SELECT value FROM trigger_audit ORDER BY rowid').all(),
-    [{ value: 'positional' }],
+    db.prepare('SELECT value FROM trigger_audit ORDER BY rowid').all().map((row) => row.value),
+    ['positional'],
   )
   assert.deepEqual(installLegacyStoryFixes(db, { warn: () => assert.fail('second run must be silent') }), [])
   db.close()
