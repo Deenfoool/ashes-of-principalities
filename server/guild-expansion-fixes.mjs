@@ -48,18 +48,25 @@ export function installGuildExpansionFixes(expansion) {
     if (hasReceipt(expansion, userId, input.requestId)) return originalStartRaid(userId, input)
     const role = expansion.requireRole(userId)
     const guild = expansion.db.prepare(`
-      SELECT (SELECT COUNT(*) FROM guild_members member WHERE member.guild_id = guild.id) AS member_count
-      FROM guilds guild WHERE guild.id = ?
+      SELECT (SELECT COUNT(*) FROM guild_members member WHERE member.guild_id = g.id) AS member_count
+      FROM guilds g WHERE g.id = ?
     `).get(role.guild_id)
     const participantCount = Number(expansion.db.prepare(`
-      SELECT COUNT(*) AS count FROM guild_raid_participants participant
+      SELECT COUNT(*) AS count
+      FROM guild_raid_participants participant
       JOIN guild_members member
         ON member.guild_id = participant.guild_id AND member.user_id = participant.user_id
+      JOIN player_characters character
+        ON character.user_id = participant.user_id AND character.alive = 1
       WHERE participant.guild_id = ? AND participant.boss_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM player_expeditions expedition
+          WHERE expedition.user_id = participant.user_id AND expedition.status = 'active'
+        )
     `).get(role.guild_id, BOSS_ID).count)
     const minimum = Number(guild?.member_count ?? 0) <= 1 ? 1 : 2
     if (participantCount < minimum) {
-      throw new StoreError('raid-party-small', `Для начала нужно действующих участников: ${minimum}. Сейчас: ${participantCount}.`, 409)
+      throw new StoreError('raid-party-small', `Для начала нужно готовых участников: ${minimum}. Сейчас: ${participantCount}.`, 409)
     }
     return originalStartRaid(userId, input)
   }
