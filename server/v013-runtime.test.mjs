@@ -98,7 +98,7 @@ test('runtime restores three slots and remains safe across repeated server start
     const newTriggers = db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_v013_%'").get()
     assert.deepEqual(equipped.map((row) => row.id), ['body', 'charm', 'hand'])
     assert.equal(Number(oldTriggers.count), 0)
-    assert.equal(Number(newTriggers.count), 6)
+    assert.equal(Number(newTriggers.count), 7)
   } finally { db.close() }
 })
 
