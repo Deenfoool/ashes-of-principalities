@@ -1,3 +1,4 @@
+import { guildResourceDefinitions } from './guild-expansion-store.mjs'
 import { StoreError } from './store.mjs'
 
 const BOSS_ID = 'ash-crowned-devourer'
@@ -11,6 +12,23 @@ const REQUIREMENTS = {
 }
 
 export function installGuildExpansionFixes(expansion) {
+  guildResourceDefinitions['ash-crown-fragment'] = 'Осколок пепельного венца'
+
+  const originalFinishVictory = expansion.finishRaidVictory.bind(expansion)
+  expansion.finishRaidVictory = (guildId, project, now) => {
+    expansion.db.prepare(`
+      DELETE FROM guild_raid_participants
+      WHERE guild_id = ? AND boss_id = ? AND actions = 0
+    `).run(guildId, BOSS_ID)
+    originalFinishVictory(guildId, project, now)
+    const actorId = project.started_by
+      ?? expansion.db.prepare(`
+        SELECT user_id FROM guild_raid_participants
+        WHERE guild_id = ? AND boss_id = ? ORDER BY actions DESC, damage DESC LIMIT 1
+      `).get(guildId, BOSS_ID)?.user_id
+    if (actorId) expansion.addResourceLog(guildId, actorId, 'reward', 'ash-crown-fragment', 3, now)
+  }
+
   expansion.cancelRaid = (userId, input) => expansion.players.withReceipt(
     userId,
     input.requestId,
